@@ -1,8 +1,8 @@
 import { REST, Routes, SlashCommandBuilder } from "discord.js";
 
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
+const DISCORD_TOKEN = (process.env.DISCORD_TOKEN ?? "").trim();
+const CLIENT_ID = (process.env.CLIENT_ID ?? "").trim();
+const GUILD_ID = (process.env.GUILD_ID ?? "").trim();
 
 if (!DISCORD_TOKEN || !CLIENT_ID || !GUILD_ID) {
   console.error("Missing env vars. Need DISCORD_TOKEN, CLIENT_ID, GUILD_ID.");

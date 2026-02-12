@@ -22,8 +22,12 @@ const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "60").trim(), 
 
 const DATA_DIR = (process.env.DATA_DIR ?? "./data").trim();
 
-// Optional one-time reset: set RESET_CHECKED=true then remove it
+// Optional one-time reset
 const RESET_CHECKED = (process.env.RESET_CHECKED ?? "").trim().toLowerCase() === "true";
+
+// Optional: prints embed structure once on first poll (helpful debugging)
+const DEBUG_EMBED_ONCE = (process.env.DEBUG_EMBED_ONCE ?? "true").trim().toLowerCase() === "true";
+let didDebugEmbed = false;
 
 function die(msg) {
   console.error(msg);
@@ -79,21 +83,16 @@ function saveCheckedSet(set) {
 }
 
 let checked = loadCheckedSet();
-
 if (RESET_CHECKED) {
   console.log("RESET_CHECKED=true -> clearing checked list.");
   checked = new Set();
   saveCheckedSet(checked);
 }
-
 console.log(`Checked loaded: ${checked.size} gamertags`);
 
 // ===== Discord Client =====
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
   partials: [Partials.Message, Partials.Channel],
 });
 
@@ -124,10 +123,7 @@ async function fetchOpenXblProfile(gamertag) {
   const searchUrl = `${base}/search/${encodeURIComponent(wanted)}`;
   const { res: searchRes, data: searchData } = await fetchJsonWithTimeout(
     searchUrl,
-    {
-      method: "GET",
-      headers: { "X-Authorization": XBL_API_KEY, Accept: "application/json" },
-    },
+    { method: "GET", headers: { "X-Authorization": XBL_API_KEY, Accept: "application/json" } },
     8000
   );
 
@@ -150,10 +146,7 @@ async function fetchOpenXblProfile(gamertag) {
   const accountUrl = `${base}/account/${encodeURIComponent(xuid)}`;
   const { res: accRes, data: accData } = await fetchJsonWithTimeout(
     accountUrl,
-    {
-      method: "GET",
-      headers: { "X-Authorization": XBL_API_KEY, Accept: "application/json" },
-    },
+    { method: "GET", headers: { "X-Authorization": XBL_API_KEY, Accept: "application/json" } },
     8000
   );
 
@@ -203,30 +196,65 @@ async function sendToModlog(guild, embed) {
   await channel.send({ embeds: [embed] });
 }
 
-// ===== Extract from Scheduler EMBED description =====
-function extractGamertagsFromSchedulerEmbed(msg) {
+// ===== Strong extractor: reads description + fields =====
+function stripMarkdown(s) {
+  return (s ?? "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .trim();
+}
+
+function extractGamertagsFromAnyEmbed(msg) {
   const embeds = msg.embeds ?? [];
   if (!embeds.length) return [];
 
-  const desc = embeds[0]?.description;
-  if (!desc) return [];
+  // Collect all possible text areas from all embeds
+  const chunks = [];
+  for (const e of embeds) {
+    if (e?.title) chunks.push(String(e.title));
+    if (e?.description) chunks.push(String(e.description));
+    if (Array.isArray(e?.fields)) {
+      for (const f of e.fields) {
+        if (f?.name) chunks.push(String(f.name));
+        if (f?.value) chunks.push(String(f.value));
+      }
+    }
+  }
 
-  const lines = desc.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const joined = chunks.join("\n");
+  if (DEBUG_EMBED_ONCE && !didDebugEmbed) {
+    didDebugEmbed = true;
+    console.log(`[DEBUG] embed_count=${embeds.length} combined_text_len=${joined.length}`);
+    console.log(`[DEBUG] field_counts=${embeds.map(e => Array.isArray(e?.fields) ? e.fields.length : 0).join(",")}`);
+  }
+
+  const lines = joined.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
   const out = [];
   const seen = new Set();
 
   for (let line of lines) {
-    // expects bullet lines like: "• Name"
-    if (!line.startsWith("•")) continue;
+    line = stripMarkdown(line);
 
-    line = line.replace(/^•\s*/, "").trim();
-    if (!line) continue;
+    // Skip obvious header lines
+    const lower = line.toLowerCase();
+    if (lower.includes("online list") && lower.includes("players")) continue;
+    if (lower === "3xloot") continue;
 
-    if (line.toLowerCase() === "3xloot") continue;
+    // Accept bullet styles:
+    // • Name
+    // - Name
+    // - **Name**
+    // • **Name**
+    line = line.replace(/^[•\-]+\s*/, "").trim();
+    line = stripMarkdown(line);
 
     const gt = normalizeGamertag(line);
+
+    // sanity limits + allowed chars
     if (gt.length < 2 || gt.length > 20) continue;
+    if (!/^[a-zA-Z0-9 _.\-]+$/.test(gt)) continue;
 
     const k = gtKey(gt);
     if (seen.has(k)) continue;
@@ -261,7 +289,6 @@ async function processQueue() {
     while (queue.length) {
       const item = queue.shift();
       if (!item) continue;
-
       if (checked.has(item.k)) continue;
 
       checked.add(item.k);
@@ -277,23 +304,21 @@ async function processQueue() {
         } else {
           console.log(`[FLAGGED] ${profile.gamertag} GS=${profile.gamerscore}`);
 
-          if (item.guild) {
-            const embed = new EmbedBuilder()
-              .setTitle("XCHECK FLAGGED")
-              .addFields(
-                { name: "Gamertag", value: profile.gamertag, inline: true },
-                { name: "Gamerscore", value: String(profile.gamerscore), inline: true },
-                { name: "Result", value: "FLAGGED", inline: false }
-              )
-              .setColor(0xff0000)
-              .setTimestamp();
+          const embed = new EmbedBuilder()
+            .setTitle("XCHECK FLAGGED")
+            .addFields(
+              { name: "Gamertag", value: profile.gamertag, inline: true },
+              { name: "Gamerscore", value: String(profile.gamerscore), inline: true },
+              { name: "Result", value: "FLAGGED", inline: false }
+            )
+            .setColor(0xff0000)
+            .setTimestamp();
 
-            if (profile.tier) embed.addFields({ name: "Tier", value: profile.tier, inline: true });
-            if (profile.pfp) embed.setThumbnail(profile.pfp);
-            if (item.sourceChannelId) embed.addFields({ name: "Source", value: `<#${item.sourceChannelId}>`, inline: true });
+          if (profile.tier) embed.addFields({ name: "Tier", value: profile.tier, inline: true });
+          if (profile.pfp) embed.setThumbnail(profile.pfp);
+          if (item.sourceChannelId) embed.addFields({ name: "Source", value: `<#${item.sourceChannelId}>`, inline: true });
 
-            await sendToModlog(item.guild, embed);
-          }
+          await sendToModlog(item.guild, embed);
         }
       } catch (err) {
         console.error(`[ERROR] ${item.gt}:`, err?.message ?? err);
@@ -345,15 +370,17 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// ===== Event handlers (still useful) =====
+// ===== Handlers + Polling =====
 async function handleOnlineListMessage(msg, source) {
   if (!ONLINE_LIST_CHANNEL_ID) return;
   if (msg.channelId !== ONLINE_LIST_CHANNEL_ID) return;
 
-  const gts = extractGamertagsFromSchedulerEmbed(msg);
+  const gts = extractGamertagsFromAnyEmbed(msg);
   console.log(`[ONLINE LIST ${source}] embeds=${msg.embeds?.length ?? 0} extracted=${gts.length}`);
 
-  if (!gts.length) return;
+  if (gts.length) {
+    console.log(`[ONLINE LIST ${source}] sample=${gts.slice(0, 5).join(", ")}`);
+  }
 
   for (const gt of gts) enqueueGamertag(gt, msg.guild, msg.channelId);
 }
@@ -371,7 +398,6 @@ client.on("messageUpdate", async (_old, newMsg) => {
   }
 });
 
-// ===== Polling (guarantees it works even if events don’t fire) =====
 let lastPolledMessageId = null;
 
 async function pollOnlineList() {
@@ -383,7 +409,6 @@ async function pollOnlineList() {
     return;
   }
 
-  // Needs View Channel + Read Message History permissions
   const messages = await channel.messages.fetch({ limit: 5 }).catch(() => null);
   if (!messages) {
     console.log("[POLL] Could not read messages (missing Read Message History?).");
@@ -396,10 +421,8 @@ async function pollOnlineList() {
     return;
   }
 
-  // Only re-process if changed
-  if (lastPolledMessageId === newest.id) return;
-  lastPolledMessageId = newest.id;
-
+  // NOTE: If Scheduler EDITS the same message, id won't change.
+  // So we should process even if id is same, but only every poll.
   console.log(`[POLL] Newest message id=${newest.id} embeds=${newest.embeds?.length ?? 0}`);
   await handleOnlineListMessage(newest, "POLL");
 }
@@ -407,7 +430,6 @@ async function pollOnlineList() {
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
-  // Boot scan + start polling
   await pollOnlineList();
   setInterval(() => {
     pollOnlineList().catch((e) => console.error("[POLL] error:", e));

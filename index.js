@@ -16,31 +16,42 @@ import path from "node:path";
 const DISCORD_TOKEN = (process.env.DISCORD_TOKEN ?? "").trim();
 const DISCORD_CLIENT_ID = (process.env.DISCORD_CLIENT_ID ?? "").trim();
 const GUILD_ID = (process.env.GUILD_ID ?? "").trim();
-const COMMANDS_AUTO_DEPLOY = (process.env.COMMANDS_AUTO_DEPLOY ?? "false").trim().toLowerCase() === "true";
+const COMMANDS_AUTO_DEPLOY =
+  (process.env.COMMANDS_AUTO_DEPLOY ?? "false").trim().toLowerCase() === "true";
 
 const XBL_API_KEY = (process.env.XBL_API_KEY ?? "").trim();
 
-const GS_THRESHOLD = Number.parseInt((process.env.GS_THRESHOLD ?? "2500").trim(), 10);
+const GS_THRESHOLD = Number.parseInt(
+  (process.env.GS_THRESHOLD ?? "2500").trim(),
+  10
+);
 const ONLINE_LIST_CHANNEL_ID = (process.env.ONLINE_LIST_CHANNEL_ID ?? "").trim();
 const MODLOG_CHANNEL_ID = (process.env.MODLOG_CHANNEL_ID ?? "").trim();
 
 const DIGEST_CHANNEL_ID = (process.env.DIGEST_CHANNEL_ID ?? MODLOG_CHANNEL_ID).trim();
-const DIGEST_INTERVAL_HOURS = Number.parseInt((process.env.DIGEST_INTERVAL_HOURS ?? "1").trim(), 10);
+const DIGEST_INTERVAL_HOURS = Number.parseInt(
+  (process.env.DIGEST_INTERVAL_HOURS ?? "1").trim(),
+  10
+);
 
-const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "4000").trim(), 10);
+const SCRUB_DELAY_MS = Number.parseInt(
+  (process.env.SCRUB_DELAY_MS ?? "4000").trim(),
+  10
+);
 const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "180").trim(), 10);
 
 const DATA_DIR = (process.env.DATA_DIR ?? "./data").trim();
-const IMMEDIATE_FLAG_LOGS = (process.env.IMMEDIATE_FLAG_LOGS ?? "false").trim().toLowerCase() === "true";
+const IMMEDIATE_FLAG_LOGS =
+  (process.env.IMMEDIATE_FLAG_LOGS ?? "false").trim().toLowerCase() === "true";
 const RESET_STATE = (process.env.RESET_STATE ?? "").trim().toLowerCase() === "true";
 
-// Optional: restrict staff commands to a specific role id too (in addition to ManageGuild)
+// Optional: staff role id in addition to ManageGuild
 const STAFF_ROLE_ID = (process.env.STAFF_ROLE_ID ?? "").trim();
 
 // ===== OpenXBL retry tuning =====
-const XBL_MAX_RETRIES = Number.parseInt((process.env.XBL_MAX_RETRIES ?? "5").trim(), 10);        // retries on 429
-const XBL_BACKOFF_BASE_MS = Number.parseInt((process.env.XBL_BACKOFF_BASE_MS ?? "4000").trim(), 10); // base backoff
-const XBL_BACKOFF_MAX_MS = Number.parseInt((process.env.XBL_BACKOFF_MAX_MS ?? "60000").trim(), 10);  // cap backoff
+const XBL_MAX_RETRIES = Number.parseInt((process.env.XBL_MAX_RETRIES ?? "5").trim(), 10);
+const XBL_BACKOFF_BASE_MS = Number.parseInt((process.env.XBL_BACKOFF_BASE_MS ?? "4000").trim(), 10);
+const XBL_BACKOFF_MAX_MS = Number.parseInt((process.env.XBL_BACKOFF_MAX_MS ?? "60000").trim(), 10);
 
 function die(msg) {
   console.error(msg);
@@ -50,8 +61,10 @@ function die(msg) {
 if (!DISCORD_TOKEN) die("Missing DISCORD_TOKEN");
 if (!XBL_API_KEY) die("Missing XBL_API_KEY");
 if (!Number.isFinite(GS_THRESHOLD)) die("GS_THRESHOLD must be a valid integer.");
-if (!Number.isFinite(DIGEST_INTERVAL_HOURS) || DIGEST_INTERVAL_HOURS < 1) die("DIGEST_INTERVAL_HOURS must be >= 1.");
-if (!Number.isFinite(SCRUB_DELAY_MS) || SCRUB_DELAY_MS < 0) die("SCRUB_DELAY_MS must be non-negative.");
+if (!Number.isFinite(DIGEST_INTERVAL_HOURS) || DIGEST_INTERVAL_HOURS < 1)
+  die("DIGEST_INTERVAL_HOURS must be >= 1.");
+if (!Number.isFinite(SCRUB_DELAY_MS) || SCRUB_DELAY_MS < 0)
+  die("SCRUB_DELAY_MS must be non-negative.");
 if (!Number.isFinite(POLL_SECONDS) || POLL_SECONDS < 10) die("POLL_SECONDS must be >= 10.");
 
 process.on("unhandledRejection", (err) => console.error("Unhandled rejection:", err));
@@ -59,6 +72,8 @@ process.on("uncaughtException", (err) => console.error("Uncaught exception:", er
 
 console.log("Booting 3xBot...");
 console.log(`THRESHOLD=${GS_THRESHOLD}`);
+console.log(`GUILD_ID=${GUILD_ID ? "SET" : "MISSING"}`);
+console.log(`STAFF_ROLE_ID=${STAFF_ROLE_ID ? "SET" : "MISSING"}`);
 console.log(`ONLINE_LIST_CHANNEL_ID=${ONLINE_LIST_CHANNEL_ID || "MISSING"}`);
 console.log(`MODLOG_CHANNEL_ID=${MODLOG_CHANNEL_ID || "MISSING"}`);
 console.log(`DIGEST_CHANNEL_ID=${DIGEST_CHANNEL_ID || "MISSING"}`);
@@ -69,20 +84,26 @@ console.log(`POLL_SECONDS=${POLL_SECONDS}`);
 console.log(`DATA_DIR=${DATA_DIR}`);
 console.log(`COMMANDS_AUTO_DEPLOY=${COMMANDS_AUTO_DEPLOY}`);
 console.log(`DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID ? "SET" : "MISSING"}`);
-console.log(`GUILD_ID=${GUILD_ID ? "SET" : "MISSING"}`);
-console.log(`STAFF_ROLE_ID=${STAFF_ROLE_ID ? "SET" : "MISSING"}`);
 console.log(`XBL_MAX_RETRIES=${XBL_MAX_RETRIES}`);
 console.log(`XBL_BACKOFF_BASE_MS=${XBL_BACKOFF_BASE_MS}`);
 console.log(`XBL_BACKOFF_MAX_MS=${XBL_BACKOFF_MAX_MS}`);
 
-// ===== Persistence =====
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const STATE_FILE = path.resolve(DATA_DIR, "state.json");
 
-function nowMs() { return Date.now(); }
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-function normalizeGamertag(s) { return (s ?? "").replace(/\s+/g, " ").trim(); }
-function gtKey(s) { return normalizeGamertag(s).toLowerCase(); }
+// ===== Utils =====
+function nowMs() {
+  return Date.now();
+}
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+function normalizeGamertag(s) {
+  return (s ?? "").replace(/\s+/g, " ").trim();
+}
+function gtKey(s) {
+  return normalizeGamertag(s).toLowerCase();
+}
 function stripMarkdown(s) {
   return (s ?? "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -91,7 +112,8 @@ function stripMarkdown(s) {
     .trim();
 }
 
-// trusted: { keyLower: { gamertag: "OriginalCase", addedMs: 123 } }
+// ===== State =====
+// trusted: { keyLower: { gamertag: "OriginalCase", addedMs: number } }
 function loadState() {
   try {
     const raw = fs.readFileSync(STATE_FILE, "utf8");
@@ -156,25 +178,21 @@ function loadState() {
 }
 
 function saveState() {
-  try {
-    const pendingObj = {};
-    for (const [k, v] of state.pending.entries()) pendingObj[k] = v;
+  const pendingObj = {};
+  for (const [k, v] of state.pending.entries()) pendingObj[k] = v;
 
-    const flaggedAllObj = {};
-    for (const [k, v] of state.flaggedAll.entries()) flaggedAllObj[k] = v;
+  const flaggedAllObj = {};
+  for (const [k, v] of state.flaggedAll.entries()) flaggedAllObj[k] = v;
 
-    const out = {
-      checked: Array.from(state.checked.values()).sort((a, b) => a.localeCompare(b)),
-      pending: pendingObj,
-      lastDigestMs: state.lastDigestMs,
-      trusted: state.trusted,
-      flaggedAll: flaggedAllObj,
-    };
+  const out = {
+    checked: Array.from(state.checked.values()).sort((a, b) => a.localeCompare(b)),
+    pending: pendingObj,
+    lastDigestMs: state.lastDigestMs,
+    trusted: state.trusted,
+    flaggedAll: flaggedAllObj,
+  };
 
-    fs.writeFileSync(STATE_FILE, JSON.stringify(out, null, 2), "utf8");
-  } catch (err) {
-    console.error("Failed saving state:", err?.message ?? err);
-  }
+  fs.writeFileSync(STATE_FILE, JSON.stringify(out, null, 2), "utf8");
 }
 
 let state = loadState();
@@ -189,13 +207,30 @@ console.log(
   `State loaded: checked=${state.checked.size}, pending=${state.pending.size}, flaggedAll=${state.flaggedAll.size}, trusted=${Object.keys(state.trusted).length}, lastDigestMs=${state.lastDigestMs}`
 );
 
+// ===== Trusted helpers (ONLY DECLARED ONCE) =====
+function isTrustedKey(k) {
+  return !!state.trusted?.[k];
+}
+function trustedDisplayForKey(k) {
+  return state.trusted?.[k]?.gamertag || k;
+}
+
 // ===== Discord Client =====
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
   partials: [Partials.Message, Partials.Channel],
 });
 
-// ===== Auto-deploy slash commands =====
+// ===== Staff check =====
+function isStaff(interaction) {
+  const perms = interaction.memberPermissions;
+  const hasManageGuild = perms?.has(PermissionsBitField.Flags.ManageGuild);
+  if (hasManageGuild) return true;
+  if (STAFF_ROLE_ID && interaction.member?.roles?.cache?.has?.(STAFF_ROLE_ID)) return true;
+  return false;
+}
+
+// ===== Commands deploy =====
 async function autoDeployCommandsIfEnabled() {
   if (!COMMANDS_AUTO_DEPLOY) return;
   if (!DISCORD_CLIENT_ID || !GUILD_ID) {
@@ -207,16 +242,12 @@ async function autoDeployCommandsIfEnabled() {
     new SlashCommandBuilder()
       .setName("xcheck")
       .setDescription("Check an Xbox gamertag's gamerscore against the configured threshold.")
-      .addStringOption((opt) =>
-        opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
-      ),
+      .addStringOption((opt) => opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)),
 
     new SlashCommandBuilder()
       .setName("xinfo")
       .setDescription("Fetch detailed Xbox profile info (only shows fields that are available).")
-      .addStringOption((opt) =>
-        opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
-      ),
+      .addStringOption((opt) => opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)),
 
     new SlashCommandBuilder()
       .setName("xflagged")
@@ -225,10 +256,7 @@ async function autoDeployCommandsIfEnabled() {
         opt
           .setName("scope")
           .setDescription("pending = since last digest; all = all-time saved")
-          .addChoices(
-            { name: "pending", value: "pending" },
-            { name: "all", value: "all" }
-          )
+          .addChoices({ name: "pending", value: "pending" }, { name: "all", value: "all" })
           .setRequired(false)
       ),
 
@@ -239,48 +267,22 @@ async function autoDeployCommandsIfEnabled() {
         opt
           .setName("action")
           .setDescription("add/remove/list")
-          .addChoices(
-            { name: "add", value: "add" },
-            { name: "remove", value: "remove" },
-            { name: "list", value: "list" }
-          )
+          .addChoices({ name: "add", value: "add" }, { name: "remove", value: "remove" }, { name: "list", value: "list" })
           .setRequired(true)
       )
       .addStringOption((opt) =>
-        opt
-          .setName("gamertag")
-          .setDescription("Gamertag (required for add/remove)")
-          .setRequired(false)
+        opt.setName("gamertag").setDescription("Gamertag (required for add/remove)").setRequired(false)
       ),
   ].map((c) => c.toJSON());
 
   try {
     console.log("[COMMANDS] Deploying guild commands...");
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
-    await rest.put(Routes.applicationGuildCommands(DISCORD_CLIENT_ID, GUILD_ID), {
-      body: commands,
-    });
+    await rest.put(Routes.applicationGuildCommands(DISCORD_CLIENT_ID, GUILD_ID), { body: commands });
     console.log("[COMMANDS] Done. /xcheck /xinfo /xflagged /xtrust registered.");
   } catch (err) {
     console.error("[COMMANDS] Deploy failed:", err?.message ?? err);
   }
-}
-
-// ===== Staff check =====
-function isStaff(interaction) {
-  const perms = interaction.memberPermissions;
-  const hasManageGuild = perms?.has(PermissionsBitField.Flags.ManageGuild);
-  if (hasManageGuild) return true;
-  if (STAFF_ROLE_ID && interaction.member?.roles?.cache?.has?.(STAFF_ROLE_ID)) return true;
-  return false;
-}
-
-// ===== Trusted helpers =====
-function isTrustedKey(k) {
-  return !!state.trusted?.[k];
-}
-function trustedDisplayForKey(k) {
-  return state.trusted?.[k]?.gamertag || k;
 }
 
 // ===== HTTP helper =====
@@ -291,7 +293,11 @@ async function fetchJsonWithTimeout(url, options, timeoutMs = 8000) {
     const res = await fetch(url, { ...options, signal: controller.signal });
     const text = await res.text();
     let data = null;
-    try { data = JSON.parse(text); } catch { data = null; }
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
     return { res, data };
   } finally {
     clearTimeout(timer);
@@ -305,7 +311,6 @@ class RateLimitError extends Error {
     this.retryAfterMs = retryAfterMs;
   }
 }
-
 function parseRetryAfterMs(res) {
   const ra = res.headers?.get?.("retry-after");
   if (!ra) return null;
@@ -314,7 +319,7 @@ function parseRetryAfterMs(res) {
   return Math.max(0, Math.round(sec * 1000));
 }
 
-// ===== OpenXBL with backoff =====
+// ===== OpenXBL with retry/backoff =====
 async function openXblFetchJson(url) {
   const { res, data } = await fetchJsonWithTimeout(
     url,
@@ -344,7 +349,7 @@ async function openXblFetchWithRetry(url) {
 
         const backoff = Math.min(
           XBL_BACKOFF_MAX_MS,
-          (err.retryAfterMs ?? 0) || (XBL_BACKOFF_BASE_MS * Math.pow(2, attempt - 1))
+          err.retryAfterMs ?? XBL_BACKOFF_BASE_MS * Math.pow(2, attempt - 1)
         );
 
         console.log(`[XBL] 429 rate limit. Backing off ${backoff}ms (attempt ${attempt}/${XBL_MAX_RETRIES})`);
@@ -362,7 +367,6 @@ async function openXblSearch(gamertag) {
   const url = `${base}/search/${encodeURIComponent(wanted)}`;
 
   const data = await openXblFetchWithRetry(url);
-
   const people = data?.people;
   if (!Array.isArray(people) || people.length === 0) throw new Error("Gamertag not found.");
 
@@ -407,7 +411,10 @@ function deepFindNumbers(obj, keyNamesLower) {
   const found = new Map();
   const visit = (x) => {
     if (!x || typeof x !== "object") return;
-    if (Array.isArray(x)) { for (const it of x) visit(it); return; }
+    if (Array.isArray(x)) {
+      for (const it of x) visit(it);
+      return;
+    }
     for (const [k, v] of Object.entries(x)) {
       const kl = k.toLowerCase();
       if (keyNamesLower.has(kl)) {
@@ -432,9 +439,7 @@ async function fetchOpenXblMergedProfile(gamertag) {
   const settingsMap = settingsToMap(settingsArr);
 
   const displayGamertag =
-    readSetting(settingsMap, "Gamertag") ||
-    person.gamertag ||
-    normalizeGamertag(gamertag);
+    readSetting(settingsMap, "Gamertag") || person.gamertag || normalizeGamertag(gamertag);
 
   const gamerscore =
     parseIntOrNull(readSetting(settingsMap, "Gamerscore")) ??
@@ -464,7 +469,13 @@ async function fetchOpenXblMergedProfile(gamertag) {
   const xboxRep = person?.xboxOneRep || person?.detail?.xboxOneRep || null;
   const hasGamePass = person?.detail?.hasGamePass ?? person?.hasGamePass ?? null;
 
-  const keyNamesLower = new Set(["followerscount", "followercount", "followingcount", "friendscount", "friendcount"]);
+  const keyNamesLower = new Set([
+    "followerscount",
+    "followercount",
+    "followingcount",
+    "friendscount",
+    "friendcount",
+  ]);
   const socialNums = deepFindNumbers({ person, accData }, keyNamesLower);
 
   const followerCount = socialNums["followercount"] ?? socialNums["followerscount"] ?? null;
@@ -527,7 +538,6 @@ function extractGamertagsFromEmbeds(msg) {
 
   for (let line of lines) {
     line = stripMarkdown(line);
-
     const lower = line.toLowerCase();
     if (lower.includes("online list") && lower.includes("players")) continue;
     if (lower === "3xloot") continue;
@@ -588,10 +598,6 @@ function addFlagged(profile) {
   saveState();
 }
 
-function isTrustedKey(k) {
-  return !!state.trusted?.[k];
-}
-
 function trustGamertag(gt) {
   const original = normalizeGamertag(gt);
   const k = gtKey(original);
@@ -601,7 +607,6 @@ function trustGamertag(gt) {
   state.pending.delete(k);
   state.flaggedAll.delete(k);
   saveState();
-
   return { ok: true, display: original };
 }
 
@@ -610,10 +615,9 @@ function untrustGamertag(gt) {
   const k = gtKey(original);
   if (!k) return { ok: false, display: "" };
 
-  const display = state.trusted?.[k]?.gamertag || original;
+  const display = trustedDisplayForKey(k);
   delete state.trusted[k];
   saveState();
-
   return { ok: true, display };
 }
 
@@ -623,7 +627,7 @@ function chunkLines(lines, maxChars) {
   let current = "";
   for (const line of lines) {
     const add = (current ? "\n" : "") + line;
-    if ((current.length + add.length) > maxChars) {
+    if (current.length + add.length > maxChars) {
       if (current) chunks.push(current);
       current = line;
     } else {
@@ -654,9 +658,9 @@ async function sendDigestIfDue() {
 
   const intervalMs = DIGEST_INTERVAL_HOURS * 60 * 60 * 1000;
   const now = nowMs();
-  if (state.lastDigestMs && (now - state.lastDigestMs) < intervalMs) return;
+  if (state.lastDigestMs && now - state.lastDigestMs < intervalMs) return;
 
-  const cutoff = state.lastDigestMs || (now - intervalMs);
+  const cutoff = state.lastDigestMs || now - intervalMs;
 
   const items = Array.from(state.pending.entries())
     .map(([k, v]) => ({ k, ...v }))
@@ -720,12 +724,10 @@ async function pollOnlineList() {
   for (const gt of gts) enqueueGamertag(gt, newest.guild);
 }
 
-// ===== Auto-scrub queue (IMPORTANT: only mark checked after success) =====
+// ===== Auto-scrub queue (mark checked ONLY after successful lookup) =====
 const queue = [];
 const queuedKeys = new Set();
 let working = false;
-
-// When OpenXBL rate limits, we pause all processing for a bit.
 let globalCooldownUntilMs = 0;
 
 function enqueueGamertag(gt, guild) {
@@ -735,8 +737,6 @@ function enqueueGamertag(gt, guild) {
 
   if (isTrustedKey(k)) return;
   if (state.checked.has(k)) return;
-
-  // prevent duplicates in queue
   if (queuedKeys.has(k)) return;
 
   queue.push({ gt: clean, k, guild });
@@ -757,7 +757,6 @@ async function processQueue() {
       if (isTrustedKey(item.k)) continue;
       if (state.checked.has(item.k)) continue;
 
-      // Respect global cooldown if we recently hit rate limit
       const now = nowMs();
       if (globalCooldownUntilMs > now) {
         const wait = globalCooldownUntilMs - now;
@@ -770,7 +769,7 @@ async function processQueue() {
       try {
         const merged = await fetchOpenXblMergedProfile(item.gt);
 
-        // ✅ mark checked ONLY after successful OpenXBL round trip
+        // mark checked only after successful OpenXBL round-trip
         state.checked.add(item.k);
         saveState();
 
@@ -802,22 +801,16 @@ async function processQueue() {
           }
         }
       } catch (err) {
-        // If rate limited, don't “lose” the gamertag — requeue it after cooldown
         if (err instanceof RateLimitError) {
-          const backoff = Math.min(
-            XBL_BACKOFF_MAX_MS,
-            err.retryAfterMs ?? XBL_BACKOFF_BASE_MS
-          );
-
+          const backoff = Math.min(XBL_BACKOFF_MAX_MS, err.retryAfterMs ?? XBL_BACKOFF_BASE_MS);
           globalCooldownUntilMs = nowMs() + backoff;
           console.log(`[XBL] Rate-limited in worker. Cooling down ${backoff}ms then requeue ${item.gt}`);
 
-          // requeue (but avoid tight loop)
           await sleep(Math.min(backoff, 15000));
           enqueueGamertag(item.gt, item.guild);
         } else {
           console.error(`[ERROR] ${item.gt}:`, err?.message ?? err);
-          // do NOT mark checked here; allow future retry via polling
+          // not checked -> will retry in future polls
         }
       }
 
@@ -832,14 +825,12 @@ async function processQueue() {
 function buildListEmbeds(title, lines, color = 0x2b2d31) {
   const chunks = chunkLines(lines, 3500);
   const embeds = [];
-
   for (let i = 0; i < chunks.length; i++) {
     const e = new EmbedBuilder()
       .setTitle(title)
       .setDescription(chunks[i] || "—")
       .setColor(color)
       .setTimestamp();
-
     if (chunks.length > 1) e.setFooter({ text: `Page ${i + 1}/${chunks.length}` });
     embeds.push(e);
   }
@@ -848,7 +839,6 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-
   const cmd = interaction.commandName;
   if (!["xcheck", "xinfo", "xflagged", "xtrust"].includes(cmd)) return;
 
@@ -887,11 +877,7 @@ client.on("interactionCreate", async (interaction) => {
         .filter((x) => !isTrustedKey(x.k))
         .sort((a, b) => (a.gamertag || "").localeCompare(b.gamertag || ""));
 
-      const lines = items.map((x) => {
-        const gs = Number.isFinite(x.lastKnownGS) ? ` (${x.lastKnownGS})` : "";
-        return `${x.gamertag}${gs}`;
-      });
-
+      const lines = items.map((x) => `${x.gamertag}${Number.isFinite(x.lastKnownGS) ? ` (${x.lastKnownGS})` : ""}`);
       const embeds = buildListEmbeds(
         `Flagged (All-Time) • ${lines.length}`,
         lines.length ? lines : ["No saved low-GS gamertags yet."],
@@ -909,10 +895,10 @@ client.on("interactionCreate", async (interaction) => {
 
       if (action === "list") {
         const entries = Object.entries(state.trusted || {})
-          .map(([k, v]) => ({ key: k, gamertag: v?.gamertag || k, addedMs: v?.addedMs || 0 }))
+          .map(([k, v]) => ({ key: k, gamertag: v?.gamertag || k }))
           .sort((a, b) => (a.gamertag || "").localeCompare(b.gamertag || ""));
-
         const lines = entries.map((e) => e.gamertag);
+
         const embeds = buildListEmbeds(
           `Trusted Gamertags • ${lines.length}`,
           lines.length ? lines : ["No trusted gamertags saved."],
@@ -962,8 +948,8 @@ client.on("interactionCreate", async (interaction) => {
       if (merged.gamerscore !== null) addFieldIf(embed, "Gamerscore", String(merged.gamerscore), true);
       addFieldIf(embed, "Result", flaggedByGS ? "FLAGGED" : "OK", false);
       addFieldIf(embed, "Tier", merged.tier ? String(merged.tier) : "", true);
-
       if (merged.gamerpic) embed.setThumbnail(merged.gamerpic);
+
       await interaction.editReply({ embeds: [embed] });
       return;
     }
@@ -1008,6 +994,7 @@ client.on("interactionCreate", async (interaction) => {
     if (zeros.length) embed.addFields({ name: "⚠️ Social Looks Empty", value: zeros.join(" • "), inline: false });
 
     embed.setFooter({ text: "Note: Some fields may be unavailable due to Xbox privacy settings." });
+
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error("interaction error:", err?.message ?? err);
@@ -1021,7 +1008,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// ===== Poll & Digest loops =====
+// ===== Ready =====
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 

@@ -21,23 +21,14 @@ const COMMANDS_AUTO_DEPLOY =
 
 const XBL_API_KEY = (process.env.XBL_API_KEY ?? "").trim();
 
-const GS_THRESHOLD = Number.parseInt(
-  (process.env.GS_THRESHOLD ?? "2500").trim(),
-  10
-);
+const GS_THRESHOLD = Number.parseInt((process.env.GS_THRESHOLD ?? "2500").trim(), 10);
 const ONLINE_LIST_CHANNEL_ID = (process.env.ONLINE_LIST_CHANNEL_ID ?? "").trim();
 const MODLOG_CHANNEL_ID = (process.env.MODLOG_CHANNEL_ID ?? "").trim();
 
 const DIGEST_CHANNEL_ID = (process.env.DIGEST_CHANNEL_ID ?? MODLOG_CHANNEL_ID).trim();
-const DIGEST_INTERVAL_HOURS = Number.parseInt(
-  (process.env.DIGEST_INTERVAL_HOURS ?? "1").trim(),
-  10
-);
+const DIGEST_INTERVAL_HOURS = Number.parseInt((process.env.DIGEST_INTERVAL_HOURS ?? "1").trim(), 10);
 
-const SCRUB_DELAY_MS = Number.parseInt(
-  (process.env.SCRUB_DELAY_MS ?? "4000").trim(),
-  10
-);
+const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "4000").trim(), 10);
 const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "180").trim(), 10);
 
 const DATA_DIR = (process.env.DATA_DIR ?? "./data").trim();
@@ -63,8 +54,7 @@ if (!XBL_API_KEY) die("Missing XBL_API_KEY");
 if (!Number.isFinite(GS_THRESHOLD)) die("GS_THRESHOLD must be a valid integer.");
 if (!Number.isFinite(DIGEST_INTERVAL_HOURS) || DIGEST_INTERVAL_HOURS < 1)
   die("DIGEST_INTERVAL_HOURS must be >= 1.");
-if (!Number.isFinite(SCRUB_DELAY_MS) || SCRUB_DELAY_MS < 0)
-  die("SCRUB_DELAY_MS must be non-negative.");
+if (!Number.isFinite(SCRUB_DELAY_MS) || SCRUB_DELAY_MS < 0) die("SCRUB_DELAY_MS must be non-negative.");
 if (!Number.isFinite(POLL_SECONDS) || POLL_SECONDS < 10) die("POLL_SECONDS must be >= 10.");
 
 process.on("unhandledRejection", (err) => console.error("Unhandled rejection:", err));
@@ -112,8 +102,17 @@ function stripMarkdown(s) {
     .trim();
 }
 
+// NEW: parse comma-separated gamertags in one string
+function parseGamertagList(input) {
+  const raw = (input ?? "").trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((x) => normalizeGamertag(x))
+    .filter((x) => x.length >= 2 && x.length <= 20);
+}
+
 // ===== State =====
-// trusted: { keyLower: { gamertag: "OriginalCase", addedMs: number } }
 function loadState() {
   try {
     const raw = fs.readFileSync(STATE_FILE, "utf8");
@@ -207,7 +206,7 @@ console.log(
   `State loaded: checked=${state.checked.size}, pending=${state.pending.size}, flaggedAll=${state.flaggedAll.size}, trusted=${Object.keys(state.trusted).length}, lastDigestMs=${state.lastDigestMs}`
 );
 
-// ===== Trusted helpers (ONLY DECLARED ONCE) =====
+// ===== Trusted helpers =====
 function isTrustedKey(k) {
   return !!state.trusted?.[k];
 }
@@ -262,7 +261,7 @@ async function autoDeployCommandsIfEnabled() {
 
     new SlashCommandBuilder()
       .setName("xtrust")
-      .setDescription("Manage trusted gamertags (whitelist). Trusted names are excluded from flagged lists.")
+      .setDescription("Manage trusted gamertags (whitelist). You can add/remove multiple separated by commas.")
       .addStringOption((opt) =>
         opt
           .setName("action")
@@ -271,7 +270,10 @@ async function autoDeployCommandsIfEnabled() {
           .setRequired(true)
       )
       .addStringOption((opt) =>
-        opt.setName("gamertag").setDescription("Gamertag (required for add/remove)").setRequired(false)
+        opt
+          .setName("gamertag")
+          .setDescription("Gamertag(s). For add/remove you can paste multiple separated by commas.")
+          .setRequired(false)
       ),
   ].map((c) => c.toJSON());
 
@@ -469,13 +471,7 @@ async function fetchOpenXblMergedProfile(gamertag) {
   const xboxRep = person?.xboxOneRep || person?.detail?.xboxOneRep || null;
   const hasGamePass = person?.detail?.hasGamePass ?? person?.hasGamePass ?? null;
 
-  const keyNamesLower = new Set([
-    "followerscount",
-    "followercount",
-    "followingcount",
-    "friendscount",
-    "friendcount",
-  ]);
+  const keyNamesLower = new Set(["followerscount", "followercount", "followingcount", "friendscount", "friendcount"]);
   const socialNums = deepFindNumbers({ person, accData }, keyNamesLower);
 
   const followerCount = socialNums["followercount"] ?? socialNums["followerscount"] ?? null;
@@ -569,12 +565,7 @@ function addFlagged(profile) {
 
   const p = state.pending.get(k);
   if (!p) {
-    state.pending.set(k, {
-      gamertag: profile.gamertag,
-      gamerscore: profile.gamerscore ?? 0,
-      firstSeenMs: t,
-      lastSeenMs: t,
-    });
+    state.pending.set(k, { gamertag: profile.gamertag, gamerscore: profile.gamerscore ?? 0, firstSeenMs: t, lastSeenMs: t });
   } else {
     p.gamertag = profile.gamertag;
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) p.gamerscore = profile.gamerscore;
@@ -583,12 +574,7 @@ function addFlagged(profile) {
 
   const a = state.flaggedAll.get(k);
   if (!a) {
-    state.flaggedAll.set(k, {
-      gamertag: profile.gamertag,
-      lastKnownGS: profile.gamerscore ?? 0,
-      firstSeenMs: t,
-      lastSeenMs: t,
-    });
+    state.flaggedAll.set(k, { gamertag: profile.gamertag, lastKnownGS: profile.gamerscore ?? 0, firstSeenMs: t, lastSeenMs: t });
   } else {
     a.gamertag = profile.gamertag;
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) a.lastKnownGS = profile.gamerscore;
@@ -603,11 +589,14 @@ function trustGamertag(gt) {
   const k = gtKey(original);
   if (!k) return { ok: false, display: "" };
 
+  const wasFlagged = state.pending.has(k) || state.flaggedAll.has(k);
+
   state.trusted[k] = { gamertag: original, addedMs: nowMs() };
   state.pending.delete(k);
   state.flaggedAll.delete(k);
   saveState();
-  return { ok: true, display: original };
+
+  return { ok: true, display: original, removedFlagged: wasFlagged };
 }
 
 function untrustGamertag(gt) {
@@ -618,6 +607,7 @@ function untrustGamertag(gt) {
   const display = trustedDisplayForKey(k);
   delete state.trusted[k];
   saveState();
+
   return { ok: true, display };
 }
 
@@ -724,7 +714,7 @@ async function pollOnlineList() {
   for (const gt of gts) enqueueGamertag(gt, newest.guild);
 }
 
-// ===== Auto-scrub queue (mark checked ONLY after successful lookup) =====
+// ===== Auto-scrub queue =====
 const queue = [];
 const queuedKeys = new Set();
 let working = false;
@@ -769,7 +759,6 @@ async function processQueue() {
       try {
         const merged = await fetchOpenXblMergedProfile(item.gt);
 
-        // mark checked only after successful OpenXBL round-trip
         state.checked.add(item.k);
         saveState();
 
@@ -805,12 +794,10 @@ async function processQueue() {
           const backoff = Math.min(XBL_BACKOFF_MAX_MS, err.retryAfterMs ?? XBL_BACKOFF_BASE_MS);
           globalCooldownUntilMs = nowMs() + backoff;
           console.log(`[XBL] Rate-limited in worker. Cooling down ${backoff}ms then requeue ${item.gt}`);
-
           await sleep(Math.min(backoff, 15000));
           enqueueGamertag(item.gt, item.guild);
         } else {
           console.error(`[ERROR] ${item.gt}:`, err?.message ?? err);
-          // not checked -> will retry in future polls
         }
       }
 
@@ -821,7 +808,7 @@ async function processQueue() {
   }
 }
 
-// ===== Commands =====
+// ===== Build paged embeds =====
 function buildListEmbeds(title, lines, color = 0x2b2d31) {
   const chunks = chunkLines(lines, 3500);
   const embeds = [];
@@ -837,8 +824,10 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
   return embeds;
 }
 
+// ===== Interactions =====
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
+
   const cmd = interaction.commandName;
   if (!["xcheck", "xinfo", "xflagged", "xtrust"].includes(cmd)) return;
 
@@ -852,8 +841,119 @@ client.on("interactionCreate", async (interaction) => {
 
     await interaction.deferReply({ ephemeral: false });
 
+    if (cmd === "xtrust") {
+      const action = (interaction.options.getString("action", true) ?? "").toLowerCase();
+      const input = interaction.options.getString("gamertag") ?? "";
+
+      if (action === "list") {
+        const entries = Object.entries(state.trusted || {})
+          .map(([k, v]) => ({ gamertag: v?.gamertag || k }))
+          .sort((a, b) => (a.gamertag || "").localeCompare(b.gamertag || ""));
+        const lines = entries.map((e) => e.gamertag);
+
+        const embeds = buildListEmbeds(`Trusted Gamertags • ${lines.length}`, lines.length ? lines : ["No trusted gamertags saved."], 0x00ff00);
+        await interaction.editReply({ embeds: [embeds[0]] });
+        for (let i = 1; i < embeds.length; i++) await interaction.followUp({ embeds: [embeds[i]] });
+        return;
+      }
+
+      const gts = parseGamertagList(input);
+      if (gts.length === 0) {
+        await interaction.editReply("You must provide gamertag(s) for add/remove. Separate multiple with commas.");
+        return;
+      }
+
+      if (action === "add") {
+        let added = 0;
+        let removedFromFlagged = 0;
+        let already = 0;
+        const addedList = [];
+        const alreadyList = [];
+        const invalidList = [];
+
+        for (const gt of gts) {
+          const k = gtKey(gt);
+          if (!k) {
+            invalidList.push(gt);
+            continue;
+          }
+          if (isTrustedKey(k)) {
+            already++;
+            alreadyList.push(trustedDisplayForKey(k));
+            continue;
+          }
+          const res = trustGamertag(gt);
+          if (res.ok) {
+            added++;
+            addedList.push(res.display);
+            if (res.removedFlagged) removedFromFlagged++;
+          }
+        }
+
+        const embed = new EmbedBuilder()
+          .setTitle("Trusted Update")
+          .setColor(0x00ff00)
+          .addFields(
+            { name: "Added", value: String(added), inline: true },
+            { name: "Removed from flagged", value: String(removedFromFlagged), inline: true },
+            { name: "Already trusted", value: String(already), inline: true }
+          )
+          .setTimestamp();
+
+        if (addedList.length) embed.addFields({ name: "Added Gamertags", value: addedList.join("\n").slice(0, 1024), inline: false });
+        if (alreadyList.length) embed.addFields({ name: "Already Trusted", value: alreadyList.join("\n").slice(0, 1024), inline: false });
+        if (invalidList.length) embed.addFields({ name: "Invalid", value: invalidList.join("\n").slice(0, 1024), inline: false });
+
+        await interaction.editReply({ embeds: [embed] });
+        return;
+      }
+
+      if (action === "remove") {
+        let removed = 0;
+        let notFound = 0;
+        const removedList = [];
+        const notFoundList = [];
+
+        for (const gt of gts) {
+          const k = gtKey(gt);
+          if (!k) continue;
+
+          if (!isTrustedKey(k)) {
+            notFound++;
+            notFoundList.push(gt);
+            continue;
+          }
+
+          const res = untrustGamertag(gt);
+          if (res.ok) {
+            removed++;
+            removedList.push(res.display);
+          }
+        }
+
+        const embed = new EmbedBuilder()
+          .setTitle("Trusted Update")
+          .setColor(0xffcc00)
+          .addFields(
+            { name: "Removed", value: String(removed), inline: true },
+            { name: "Not trusted", value: String(notFound), inline: true }
+          )
+          .setTimestamp();
+
+        if (removedList.length) embed.addFields({ name: "Removed Gamertags", value: removedList.join("\n").slice(0, 1024), inline: false });
+        if (notFoundList.length) embed.addFields({ name: "Not Trusted", value: notFoundList.join("\n").slice(0, 1024), inline: false });
+
+        await interaction.editReply({ embeds: [embed] });
+        return;
+      }
+
+      await interaction.editReply("Invalid action. Use add/remove/list.");
+      return;
+    }
+
     if (cmd === "xflagged") {
       const scope = (interaction.options.getString("scope") ?? "pending").toLowerCase();
+
       if (scope === "pending") {
         const items = Array.from(state.pending.entries())
           .map(([k, v]) => ({ k, ...v }))
@@ -878,6 +978,7 @@ client.on("interactionCreate", async (interaction) => {
         .sort((a, b) => (a.gamertag || "").localeCompare(b.gamertag || ""));
 
       const lines = items.map((x) => `${x.gamertag}${Number.isFinite(x.lastKnownGS) ? ` (${x.lastKnownGS})` : ""}`);
+
       const embeds = buildListEmbeds(
         `Flagged (All-Time) • ${lines.length}`,
         lines.length ? lines : ["No saved low-GS gamertags yet."],
@@ -886,50 +987,6 @@ client.on("interactionCreate", async (interaction) => {
 
       await interaction.editReply({ embeds: [embeds[0]] });
       for (let i = 1; i < embeds.length; i++) await interaction.followUp({ embeds: [embeds[i]] });
-      return;
-    }
-
-    if (cmd === "xtrust") {
-      const action = (interaction.options.getString("action", true) ?? "").toLowerCase();
-      const gt = interaction.options.getString("gamertag") ?? "";
-
-      if (action === "list") {
-        const entries = Object.entries(state.trusted || {})
-          .map(([k, v]) => ({ key: k, gamertag: v?.gamertag || k }))
-          .sort((a, b) => (a.gamertag || "").localeCompare(b.gamertag || ""));
-        const lines = entries.map((e) => e.gamertag);
-
-        const embeds = buildListEmbeds(
-          `Trusted Gamertags • ${lines.length}`,
-          lines.length ? lines : ["No trusted gamertags saved."],
-          0x00ff00
-        );
-
-        await interaction.editReply({ embeds: [embeds[0]] });
-        for (let i = 1; i < embeds.length; i++) await interaction.followUp({ embeds: [embeds[i]] });
-        return;
-      }
-
-      if ((action === "add" || action === "remove") && !gt.trim()) {
-        await interaction.editReply("You must provide a gamertag for add/remove.");
-        return;
-      }
-
-      if (action === "add") {
-        const res = trustGamertag(gt);
-        if (!res.ok) return void interaction.editReply("Could not trust that gamertag (invalid).");
-        await interaction.editReply(`✅ Trusted: **${res.display}**\nRemoved from flagged lists and will be ignored going forward.`);
-        return;
-      }
-
-      if (action === "remove") {
-        const res = untrustGamertag(gt);
-        if (!res.ok) return void interaction.editReply("Could not untrust that gamertag (invalid).");
-        await interaction.editReply(`🗑️ Removed from trusted: **${res.display}**`);
-        return;
-      }
-
-      await interaction.editReply("Invalid action. Use add/remove/list.");
       return;
     }
 
@@ -1011,7 +1068,6 @@ client.on("interactionCreate", async (interaction) => {
 // ===== Ready =====
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
-
   await autoDeployCommandsIfEnabled();
 
   await pollOnlineList().catch((e) => console.error("[POLL] error:", e));

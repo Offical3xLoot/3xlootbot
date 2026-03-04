@@ -1,60 +1,121 @@
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isAutocomplete()) return;
+import { REST, Routes, SlashCommandBuilder } from "discord.js";
 
-  try {
-    const cmd = interaction.commandName;
+const DISCORD_TOKEN = (process.env.DISCORD_TOKEN ?? "").trim();
+const DISCORD_CLIENT_ID = (process.env.DISCORD_CLIENT_ID ?? "").trim();
+const GUILD_ID = (process.env.GUILD_ID ?? "").trim();
 
-    // Only handle autocomplete for these trader commands
-    if (!["price", "buy", "sell", "pricesearch", "pricecategory"].includes(cmd)) return;
+function die(msg) {
+  console.error(msg);
+  process.exit(1);
+}
 
-    const focused = interaction.options.getFocused(true); // { name, value }
-    const typed = String(focused.value ?? "").trim().toLowerCase();
+if (!DISCORD_TOKEN) die("Missing DISCORD_TOKEN");
+if (!DISCORD_CLIENT_ID) die("Missing DISCORD_CLIENT_ID");
+if (!GUILD_ID) die("Missing GUILD_ID");
 
-    // CATEGORY autocomplete
-    if (cmd === "pricecategory" && focused.name === "category") {
-      const cats = trader.categoryList || [];
-      const matches = cats
-        .filter((c) => c.toLowerCase().includes(typed))
-        .slice(0, 25)
-        .map((c) => ({ name: c, value: c }));
+const commands = [
+  new SlashCommandBuilder()
+    .setName("xcheck")
+    .setDescription("Check an Xbox gamertag's gamerscore against the configured threshold.")
+    .addStringOption((opt) =>
+      opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
+    ),
 
-      await interaction.respond(matches.length ? matches : cats.slice(0, 25).map((c) => ({ name: c, value: c })));
-      return;
-    }
+  new SlashCommandBuilder()
+    .setName("xinfo")
+    .setDescription("Fetch detailed Xbox profile info (only shows fields that are available).")
+    .addStringOption((opt) =>
+      opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
+    ),
 
-    // ITEM autocomplete (price/buy/sell and pricesearch)
-    if (["price", "buy", "sell", "pricesearch"].includes(cmd) && (focused.name === "item" || focused.name === "query")) {
-      // Fast match over item keys/names
-      const results = [];
-      const max = 25;
+  new SlashCommandBuilder()
+    .setName("xflagged")
+    .setDescription("Show low-gamerscore gamertags saved by the bot.")
+    .addStringOption((opt) =>
+      opt
+        .setName("scope")
+        .setDescription("pending = since last digest; all = all-time saved")
+        .addChoices(
+          { name: "pending", value: "pending" },
+          { name: "all", value: "all" }
+        )
+        .setRequired(false)
+    ),
 
-      // If nothing typed, show some alphabetical starter suggestions
-      if (!typed) {
-        const some = Array.from(trader.itemsByKey.values())
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .slice(0, max)
-          .map((it) => ({ name: it.name, value: it.name }));
-        await interaction.respond(some);
-        return;
-      }
+  new SlashCommandBuilder()
+    .setName("xtrust")
+    .setDescription("Manage trusted gamertags (whitelist). You can add multiple separated by commas.")
+    .addStringOption((opt) =>
+      opt
+        .setName("action")
+        .setDescription("add/remove/list")
+        .addChoices(
+          { name: "add", value: "add" },
+          { name: "remove", value: "remove" },
+          { name: "list", value: "list" }
+        )
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName("gamertag")
+        .setDescription("Gamertag(s). For add/remove you can paste multiple separated by commas.")
+        .setRequired(false)
+    ),
 
-      for (const it of trader.itemsByKey.values()) {
-        const nameLower = it.name.toLowerCase();
-        if (!nameLower.includes(typed)) continue;
+  // Trader
+  new SlashCommandBuilder()
+    .setName("price")
+    .setDescription("Show trader buy/sell prices for an item.")
+    .addStringOption((opt) =>
+      opt.setName("item").setDescription("Item name").setRequired(true).setAutocomplete(true)
+    ),
 
-        // Show category in the dropdown label (nice UX)
-        const label = it.category ? `${it.name} • ${it.category}` : it.name;
+  new SlashCommandBuilder()
+    .setName("buy")
+    .setDescription("Calculate total cost to buy an item from the trader.")
+    .addStringOption((opt) =>
+      opt.setName("item").setDescription("Item name").setRequired(true).setAutocomplete(true)
+    )
+    .addIntegerOption((opt) =>
+      opt.setName("qty").setDescription("Quantity (default 1)").setRequired(false).setMinValue(1).setMaxValue(9999)
+    ),
 
-        results.push({ name: label.slice(0, 100), value: it.name }); // name max ~100 chars
-        if (results.length >= max) break;
-      }
+  new SlashCommandBuilder()
+    .setName("sell")
+    .setDescription("Calculate total payout to sell an item to the trader.")
+    .addStringOption((opt) =>
+      opt.setName("item").setDescription("Item name").setRequired(true).setAutocomplete(true)
+    )
+    .addIntegerOption((opt) =>
+      opt.setName("qty").setDescription("Quantity (default 1)").setRequired(false).setMinValue(1).setMaxValue(9999)
+    ),
 
-      await interaction.respond(results);
-      return;
-    }
-  } catch (e) {
-    // Never throw in autocomplete; just fail silently to avoid breaking commands
-    console.error("[AUTOCOMPLETE] error:", e?.message ?? e);
-    try { await interaction.respond([]); } catch {}
-  }
+  new SlashCommandBuilder()
+    .setName("pricesearch")
+    .setDescription("Search items in the trader price list.")
+    .addStringOption((opt) =>
+      opt.setName("query").setDescription("Search text").setRequired(true).setAutocomplete(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("pricecategory")
+    .setDescription("List items in a trader category.")
+    .addStringOption((opt) =>
+      opt.setName("category").setDescription("Category name").setRequired(true).setAutocomplete(true)
+    ),
+].map((c) => c.toJSON());
+
+async function main() {
+  const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+  console.log("Deploying guild commands...");
+  await rest.put(Routes.applicationGuildCommands(DISCORD_CLIENT_ID, GUILD_ID), {
+    body: commands,
+  });
+  console.log("Done.");
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });

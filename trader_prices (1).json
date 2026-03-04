@@ -1,0 +1,2031 @@
+{
+  "version": 1,
+  "source": "trader_prices.csv",
+  "item_count": 167,
+  "category_count": 5,
+  "categories": [
+    "Ammunition (boxed)",
+    "Attachments",
+    "Explosives",
+    "Magazines",
+    "Weapon lists"
+  ],
+  "items_by_key": {
+    "12 guage buckshot": {
+      "name": "12 Guage Buckshot",
+      "category": "Ammunition (boxed)",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "12 guage rubber slug": {
+      "name": "12 Guage Rubber Slug",
+      "category": "Ammunition (boxed)",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "12 guage slug": {
+      "name": "12 Guage Slug",
+      "category": "Ammunition (boxed)",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "22": {
+      "name": "22",
+      "category": "Ammunition (boxed)",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "30 round 5.56": {
+      "name": "30 round 5.56",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "300 round drum": {
+      "name": "300 round drum",
+      "category": "Magazines",
+      "buy": 500000,
+      "sell": 250000
+    },
+    "308": {
+      "name": "308",
+      "category": "Ammunition (boxed)",
+      "buy": 8000,
+      "sell": 4000
+    },
+    "357": {
+      "name": "357",
+      "category": "Ammunition (boxed)",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "380": {
+      "name": "380",
+      "category": "Ammunition (boxed)",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "4 dials": {
+      "name": "4 Dials",
+      "category": "Attachments",
+      "buy": 5000,
+      "sell": 3000
+    },
+    "40 round magc": {
+      "name": "40 round MAGC",
+      "category": "Magazines",
+      "buy": 12000,
+      "sell": 6000
+    },
+    "40mm": {
+      "name": "40MM",
+      "category": "Explosives",
+      "buy": 80000,
+      "sell": 40000
+    },
+    "40mm pox": {
+      "name": "40MM POX",
+      "category": "Explosives",
+      "buy": 80000,
+      "sell": 40000
+    },
+    "45": {
+      "name": "45",
+      "category": "Ammunition (boxed)",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "4x acog": {
+      "name": "4x ACOG",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "5.45": {
+      "name": "5.45",
+      "category": "Ammunition (boxed)",
+      "buy": 8000,
+      "sell": 4000
+    },
+    "5.56": {
+      "name": "5.56",
+      "category": "Ammunition (boxed)",
+      "buy": 8000,
+      "sell": 4000
+    },
+    "60 round": {
+      "name": "60 round",
+      "category": "Magazines",
+      "buy": 20000,
+      "sell": 10000
+    },
+    "6x acog": {
+      "name": "6X ACOG",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "7.62x39": {
+      "name": "7.62x39",
+      "category": "Ammunition (boxed)",
+      "buy": 8000,
+      "sell": 4000
+    },
+    "7.62x54": {
+      "name": "7.62x54",
+      "category": "Ammunition (boxed)",
+      "buy": 8000,
+      "sell": 4000
+    },
+    "75 round drum": {
+      "name": "75 round drum",
+      "category": "Magazines",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "9x19": {
+      "name": "9x19",
+      "category": "Ammunition (boxed)",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "9x39": {
+      "name": "9x39",
+      "category": "Ammunition (boxed)",
+      "buy": 8000,
+      "sell": 4000
+    },
+    "ada": {
+      "name": "Ada",
+      "category": "Ammunition (boxed)",
+      "buy": 150000,
+      "sell": 75000
+    },
+    "ak 74": {
+      "name": "AK 74",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "ak101": {
+      "name": "AK101",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "alcohol": {
+      "name": "Alcohol",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "aug ax": {
+      "name": "AUG AX",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "bandages": {
+      "name": "Bandages",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "baraka": {
+      "name": "Baraka",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "barbed wire": {
+      "name": "Barbed Wire",
+      "category": "Attachments",
+      "buy": 8000,
+      "sell": 4000
+    },
+    "barrel": {
+      "name": "Barrel",
+      "category": "Attachments",
+      "buy": 10000,
+      "sell": null
+    },
+    "belt": {
+      "name": "Belt",
+      "category": "Explosives",
+      "buy": 5000,
+      "sell": 3000
+    },
+    "bizon": {
+      "name": "Bizon",
+      "category": "Weapon lists",
+      "buy": 16000,
+      "sell": 8000
+    },
+    "bizon 64 round": {
+      "name": "Bizon 64 round",
+      "category": "Magazines",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "blaze": {
+      "name": "Blaze",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "blood collection kit": {
+      "name": "Blood Collection Kit",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "blood test kit": {
+      "name": "Blood Test Kit",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "blow torch": {
+      "name": "Blow Torch",
+      "category": "Ammunition (boxed)",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "bottle suppresor": {
+      "name": "Bottle Suppresor",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "buis": {
+      "name": "BUIS",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "camo net": {
+      "name": "Camo Net",
+      "category": "Attachments",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "canned goods": {
+      "name": "Canned Goods",
+      "category": "Magazines",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "canopy": {
+      "name": "Canopy",
+      "category": "Attachments",
+      "buy": 5000,
+      "sell": null
+    },
+    "canteen": {
+      "name": "Canteen",
+      "category": "Magazines",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "car battery": {
+      "name": "Car Battery",
+      "category": "Ammunition (boxed)",
+      "buy": 15000,
+      "sell": 8000
+    },
+    "car tent": {
+      "name": "Car Tent",
+      "category": "Attachments",
+      "buy": 30000,
+      "sell": null
+    },
+    "car wheels": {
+      "name": "Car Wheels",
+      "category": "Ammunition (boxed)",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "cargo pants": {
+      "name": "Cargo Pants",
+      "category": "Explosives",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "charcoal": {
+      "name": "Charcoal",
+      "category": "Weapon lists",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "claymore": {
+      "name": "Claymore",
+      "category": "Explosives",
+      "buy": 40000,
+      "sell": 20000
+    },
+    "codine": {
+      "name": "Codine",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "combat sights": {
+      "name": "Combat Sights",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "cz75": {
+      "name": "CZ75",
+      "category": "Weapon lists",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "cz75 15 round": {
+      "name": "CZ75 15 round",
+      "category": "Magazines",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "deagle": {
+      "name": "Deagle",
+      "category": "Weapon lists",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "deagle 9 round": {
+      "name": "Deagle 9 round",
+      "category": "Magazines",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "dmr": {
+      "name": "DMR",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "dmr 10 round": {
+      "name": "DMR 10 round",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "dmr 20 round": {
+      "name": "DMR 20 round",
+      "category": "Magazines",
+      "buy": 16000,
+      "sell": 8000
+    },
+    "duct tape": {
+      "name": "Duct Tape",
+      "category": "Magazines",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "electrical repair kit": {
+      "name": "Electrical Repair Kit",
+      "category": "Magazines",
+      "buy": 20000,
+      "sell": 10000
+    },
+    "epinephrine injector": {
+      "name": "Epinephrine Injector",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "epoxy putty": {
+      "name": "Epoxy Putty",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "field backpack": {
+      "name": "Field Backpack",
+      "category": "Explosives",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "field jacket": {
+      "name": "Field jacket",
+      "category": "Explosives",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "filters": {
+      "name": "Filters",
+      "category": "Weapon lists",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "full kit (everything above)": {
+      "name": "Full Kit (Everything above)",
+      "category": "Explosives",
+      "buy": 180000,
+      "sell": null
+    },
+    "fx 45": {
+      "name": "FX 45",
+      "category": "Weapon lists",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "fx 45 15 round": {
+      "name": "FX 45 15 round",
+      "category": "Magazines",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "gas canister": {
+      "name": "Gas Canister",
+      "category": "Ammunition (boxed)",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "glow plug": {
+      "name": "Glow Plug",
+      "category": "Ammunition (boxed)",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "grenades": {
+      "name": "Grenades",
+      "category": "Explosives",
+      "buy": 80000,
+      "sell": 40000
+    },
+    "gun cleaning kit": {
+      "name": "Gun Cleaning Kit",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "gunther": {
+      "name": "Gunther",
+      "category": "Ammunition (boxed)",
+      "buy": 150000,
+      "sell": 75000
+    },
+    "handgun scope": {
+      "name": "Handgun Scope",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "hatchet": {
+      "name": "Hatchet",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 6000
+    },
+    "headlight bulb": {
+      "name": "Headlight bulb",
+      "category": "Ammunition (boxed)",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "holster": {
+      "name": "Holster",
+      "category": "Explosives",
+      "buy": 5000,
+      "sell": 5000
+    },
+    "humvee": {
+      "name": "Humvee",
+      "category": "Ammunition (boxed)",
+      "buy": 400000,
+      "sell": 200000
+    },
+    "humvee wheels": {
+      "name": "Humvee Wheels",
+      "category": "Ammunition (boxed)",
+      "buy": 20000,
+      "sell": 10000
+    },
+    "ied case": {
+      "name": "IED Case",
+      "category": "Explosives",
+      "buy": 70000,
+      "sell": 35000
+    },
+    "iodine": {
+      "name": "Iodine",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "iv start kit": {
+      "name": "IV Start Kit",
+      "category": "Weapon lists",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "jerry can": {
+      "name": "Jerry Can",
+      "category": "Ammunition (boxed)",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "ka74 45 round": {
+      "name": "KA74 45 round",
+      "category": "Magazines",
+      "buy": 12000,
+      "sell": 6000
+    },
+    "kam": {
+      "name": "KAM",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "kobra": {
+      "name": "Kobra",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "landmine": {
+      "name": "Landmine",
+      "category": "Explosives",
+      "buy": 40000,
+      "sell": 20000
+    },
+    "lar": {
+      "name": "LAR",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "lar 20 round": {
+      "name": "LAR 20 round",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "large tent": {
+      "name": "Large Tent",
+      "category": "Attachments",
+      "buy": 20000,
+      "sell": null
+    },
+    "leather kit": {
+      "name": "Leather Kit",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "lemas 25 round": {
+      "name": "Lemas 25 round",
+      "category": "Magazines",
+      "buy": 7000,
+      "sell": 4000
+    },
+    "m4": {
+      "name": "M4",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "m4 carry handle": {
+      "name": "M4 Carry Handle",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "m79": {
+      "name": "M79",
+      "category": "Explosives",
+      "buy": 150000,
+      "sell": 75000
+    },
+    "marksman scope": {
+      "name": "Marksman Scope",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "mask": {
+      "name": "Mask",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "medium tent": {
+      "name": "Medium Tent",
+      "category": "Attachments",
+      "buy": 15000,
+      "sell": null
+    },
+    "mini sights": {
+      "name": "Mini Sights",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "mlock": {
+      "name": "Mlock",
+      "category": "Weapon lists",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "mlock 15 round": {
+      "name": "Mlock 15 round",
+      "category": "Magazines",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "morphine": {
+      "name": "Morphine",
+      "category": "Weapon lists",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "mosin": {
+      "name": "Mosin",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "mp5": {
+      "name": "MP5",
+      "category": "Weapon lists",
+      "buy": 16000,
+      "sell": 8000
+    },
+    "mp5 30 round": {
+      "name": "MP5 30 round",
+      "category": "Magazines",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "multi vitamins": {
+      "name": "Multi Vitamins",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "nails": {
+      "name": "Nails",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "nbc clothes": {
+      "name": "NBC Clothes",
+      "category": "Weapon lists",
+      "buy": 50000,
+      "sell": 25000
+    },
+    "normal suppressor": {
+      "name": "Normal Suppressor",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "nvg": {
+      "name": "NVG",
+      "category": "Explosives",
+      "buy": 50000,
+      "sell": 25000
+    },
+    "nvg scopes": {
+      "name": "NVG Scopes",
+      "category": "Attachments",
+      "buy": 12000,
+      "sell": 6000
+    },
+    "olga": {
+      "name": "Olga",
+      "category": "Ammunition (boxed)",
+      "buy": 150000,
+      "sell": 75000
+    },
+    "p1-87": {
+      "name": "P1-87",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "pickaxe": {
+      "name": "Pickaxe",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "pioneer": {
+      "name": "Pioneer",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "pioneer 5 round": {
+      "name": "Pioneer 5 round",
+      "category": "Magazines",
+      "buy": 6000,
+      "sell": 4000
+    },
+    "pistol suppressor": {
+      "name": "Pistol Suppressor",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "plastic explosives": {
+      "name": "Plastic Explosives",
+      "category": "Explosives",
+      "buy": 150000,
+      "sell": 75000
+    },
+    "plate carrier": {
+      "name": "Plate Carrier",
+      "category": "Explosives",
+      "buy": 50000,
+      "sell": 25000
+    },
+    "pliers": {
+      "name": "Pliers",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "pouches": {
+      "name": "Pouches",
+      "category": "Explosives",
+      "buy": 5000,
+      "sell": 3000
+    },
+    "pox antidote": {
+      "name": "POX Antidote",
+      "category": "Weapon lists",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "pox vials": {
+      "name": "POX Vials",
+      "category": "Explosives",
+      "buy": 80000,
+      "sell": 40000
+    },
+    "pso 1": {
+      "name": "PSO 1",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "pso 1 1": {
+      "name": "PSO 1 1",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "pso 6": {
+      "name": "PSO 6",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "pu scope": {
+      "name": "PU Scope",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "r12": {
+      "name": "R12",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "radiator": {
+      "name": "Radiator",
+      "category": "Ammunition (boxed)",
+      "buy": 20000,
+      "sell": 10000
+    },
+    "rak": {
+      "name": "RAK",
+      "category": "Weapon lists",
+      "buy": 16000,
+      "sell": 8000
+    },
+    "rak 15 round": {
+      "name": "RAK 15 round",
+      "category": "Magazines",
+      "buy": 5000,
+      "sell": 2000
+    },
+    "rak 25 round": {
+      "name": "RAK 25 round",
+      "category": "Magazines",
+      "buy": 6000,
+      "sell": 2000
+    },
+    "remote detonator units": {
+      "name": "Remote Detonator Units",
+      "category": "Explosives",
+      "buy": 20000,
+      "sell": 10000
+    },
+    "rope": {
+      "name": "Rope",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "rvn": {
+      "name": "RVN",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "saline": {
+      "name": "Saline",
+      "category": "Weapon lists",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "sarka": {
+      "name": "Sarka",
+      "category": "Ammunition (boxed)",
+      "buy": 150000,
+      "sell": 75000
+    },
+    "saws": {
+      "name": "Saws",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "sea chest": {
+      "name": "Sea Chest",
+      "category": "Attachments",
+      "buy": 5000,
+      "sell": null
+    },
+    "sewing kit": {
+      "name": "Sewing Kit",
+      "category": "Magazines",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "sharpening stones": {
+      "name": "Sharpening Stones",
+      "category": "Attachments",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "shovel": {
+      "name": "Shovel",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "sledgehammer": {
+      "name": "Sledgehammer",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "spark plug": {
+      "name": "Spark Plug",
+      "category": "Ammunition (boxed)",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "sporting optic": {
+      "name": "Sporting Optic",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "standard suppressor": {
+      "name": "Standard Suppressor",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "sval": {
+      "name": "SVAL",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "tactical helmet": {
+      "name": "Tactical Helmet",
+      "category": "Explosives",
+      "buy": 15000,
+      "sell": 7000
+    },
+    "tetracycline": {
+      "name": "Tetracycline",
+      "category": "Weapon lists",
+      "buy": 2000,
+      "sell": 1000
+    },
+    "truck": {
+      "name": "Truck",
+      "category": "Ammunition (boxed)",
+      "buy": 300000,
+      "sell": 150000
+    },
+    "truck battery": {
+      "name": "Truck Battery",
+      "category": "Ammunition (boxed)",
+      "buy": 15000,
+      "sell": 8000
+    },
+    "truck wheels": {
+      "name": "Truck Wheels",
+      "category": "Ammunition (boxed)",
+      "buy": 20000,
+      "sell": 10000
+    },
+    "tundra": {
+      "name": "Tundra",
+      "category": "Weapon lists",
+      "buy": 30000,
+      "sell": 15000
+    },
+    "ump 25 round": {
+      "name": "UMP 25 round",
+      "category": "Magazines",
+      "buy": 6000,
+      "sell": 3000
+    },
+    "usg": {
+      "name": "USG",
+      "category": "Weapon lists",
+      "buy": 16000,
+      "sell": 8000
+    },
+    "vaiga": {
+      "name": "Vaiga",
+      "category": "Weapon lists",
+      "buy": 16000,
+      "sell": 8000
+    },
+    "vaiga 20 round": {
+      "name": "Vaiga 20 round",
+      "category": "Magazines",
+      "buy": 6000,
+      "sell": 2000
+    },
+    "vs89": {
+      "name": "VS89",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "vs89 10 round": {
+      "name": "VS89 10 round",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "vsd": {
+      "name": "VSD",
+      "category": "Weapon lists",
+      "buy": 60000,
+      "sell": 30000
+    },
+    "vsd 10 round": {
+      "name": "VSD 10 round",
+      "category": "Magazines",
+      "buy": 10000,
+      "sell": 5000
+    },
+    "water bottle": {
+      "name": "Water Bottle",
+      "category": "Magazines",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "weapon parts": {
+      "name": "Weapon Parts",
+      "category": "Attachments",
+      "buy": 4000,
+      "sell": 2000
+    },
+    "wire": {
+      "name": "Wire",
+      "category": "Attachments",
+      "buy": 6000,
+      "sell": 3000
+    }
+  },
+  "items_by_category": {
+    "Ammunition (boxed)": [
+      {
+        "name": "12 Guage Buckshot",
+        "category": "Ammunition (boxed)",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "12 Guage Rubber Slug",
+        "category": "Ammunition (boxed)",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "12 Guage Slug",
+        "category": "Ammunition (boxed)",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "22",
+        "category": "Ammunition (boxed)",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "308",
+        "category": "Ammunition (boxed)",
+        "buy": 8000,
+        "sell": 4000
+      },
+      {
+        "name": "357",
+        "category": "Ammunition (boxed)",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "380",
+        "category": "Ammunition (boxed)",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "45",
+        "category": "Ammunition (boxed)",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "5.45",
+        "category": "Ammunition (boxed)",
+        "buy": 8000,
+        "sell": 4000
+      },
+      {
+        "name": "5.56",
+        "category": "Ammunition (boxed)",
+        "buy": 8000,
+        "sell": 4000
+      },
+      {
+        "name": "7.62x39",
+        "category": "Ammunition (boxed)",
+        "buy": 8000,
+        "sell": 4000
+      },
+      {
+        "name": "7.62x54",
+        "category": "Ammunition (boxed)",
+        "buy": 8000,
+        "sell": 4000
+      },
+      {
+        "name": "9x19",
+        "category": "Ammunition (boxed)",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "9x39",
+        "category": "Ammunition (boxed)",
+        "buy": 8000,
+        "sell": 4000
+      },
+      {
+        "name": "Ada",
+        "category": "Ammunition (boxed)",
+        "buy": 150000,
+        "sell": 75000
+      },
+      {
+        "name": "Blow Torch",
+        "category": "Ammunition (boxed)",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "Car Battery",
+        "category": "Ammunition (boxed)",
+        "buy": 15000,
+        "sell": 8000
+      },
+      {
+        "name": "Car Wheels",
+        "category": "Ammunition (boxed)",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Gas Canister",
+        "category": "Ammunition (boxed)",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "Glow Plug",
+        "category": "Ammunition (boxed)",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Gunther",
+        "category": "Ammunition (boxed)",
+        "buy": 150000,
+        "sell": 75000
+      },
+      {
+        "name": "Headlight bulb",
+        "category": "Ammunition (boxed)",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Humvee",
+        "category": "Ammunition (boxed)",
+        "buy": 400000,
+        "sell": 200000
+      },
+      {
+        "name": "Humvee Wheels",
+        "category": "Ammunition (boxed)",
+        "buy": 20000,
+        "sell": 10000
+      },
+      {
+        "name": "Jerry Can",
+        "category": "Ammunition (boxed)",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Olga",
+        "category": "Ammunition (boxed)",
+        "buy": 150000,
+        "sell": 75000
+      },
+      {
+        "name": "Radiator",
+        "category": "Ammunition (boxed)",
+        "buy": 20000,
+        "sell": 10000
+      },
+      {
+        "name": "Sarka",
+        "category": "Ammunition (boxed)",
+        "buy": 150000,
+        "sell": 75000
+      },
+      {
+        "name": "Spark Plug",
+        "category": "Ammunition (boxed)",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Truck",
+        "category": "Ammunition (boxed)",
+        "buy": 300000,
+        "sell": 150000
+      },
+      {
+        "name": "Truck Battery",
+        "category": "Ammunition (boxed)",
+        "buy": 15000,
+        "sell": 8000
+      },
+      {
+        "name": "Truck Wheels",
+        "category": "Ammunition (boxed)",
+        "buy": 20000,
+        "sell": 10000
+      }
+    ],
+    "Magazines": [
+      {
+        "name": "30 round 5.56",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "300 round drum",
+        "category": "Magazines",
+        "buy": 500000,
+        "sell": 250000
+      },
+      {
+        "name": "40 round MAGC",
+        "category": "Magazines",
+        "buy": 12000,
+        "sell": 6000
+      },
+      {
+        "name": "60 round",
+        "category": "Magazines",
+        "buy": 20000,
+        "sell": 10000
+      },
+      {
+        "name": "75 round drum",
+        "category": "Magazines",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "Bizon 64 round",
+        "category": "Magazines",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "Canned Goods",
+        "category": "Magazines",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Canteen",
+        "category": "Magazines",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "CZ75 15 round",
+        "category": "Magazines",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "Deagle 9 round",
+        "category": "Magazines",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "DMR 10 round",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "DMR 20 round",
+        "category": "Magazines",
+        "buy": 16000,
+        "sell": 8000
+      },
+      {
+        "name": "Duct Tape",
+        "category": "Magazines",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Electrical Repair Kit",
+        "category": "Magazines",
+        "buy": 20000,
+        "sell": 10000
+      },
+      {
+        "name": "Epoxy Putty",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "FX 45 15 round",
+        "category": "Magazines",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "Gun Cleaning Kit",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "KA74 45 round",
+        "category": "Magazines",
+        "buy": 12000,
+        "sell": 6000
+      },
+      {
+        "name": "LAR 20 round",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Leather Kit",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Lemas 25 round",
+        "category": "Magazines",
+        "buy": 7000,
+        "sell": 4000
+      },
+      {
+        "name": "Mlock 15 round",
+        "category": "Magazines",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "MP5 30 round",
+        "category": "Magazines",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Pioneer 5 round",
+        "category": "Magazines",
+        "buy": 6000,
+        "sell": 4000
+      },
+      {
+        "name": "RAK 15 round",
+        "category": "Magazines",
+        "buy": 5000,
+        "sell": 2000
+      },
+      {
+        "name": "RAK 25 round",
+        "category": "Magazines",
+        "buy": 6000,
+        "sell": 2000
+      },
+      {
+        "name": "Sewing Kit",
+        "category": "Magazines",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "UMP 25 round",
+        "category": "Magazines",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Vaiga 20 round",
+        "category": "Magazines",
+        "buy": 6000,
+        "sell": 2000
+      },
+      {
+        "name": "VS89 10 round",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "VSD 10 round",
+        "category": "Magazines",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Water Bottle",
+        "category": "Magazines",
+        "buy": 4000,
+        "sell": 2000
+      }
+    ],
+    "Attachments": [
+      {
+        "name": "4 Dials",
+        "category": "Attachments",
+        "buy": 5000,
+        "sell": 3000
+      },
+      {
+        "name": "4x ACOG",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "6X ACOG",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Baraka",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Barbed Wire",
+        "category": "Attachments",
+        "buy": 8000,
+        "sell": 4000
+      },
+      {
+        "name": "Barrel",
+        "category": "Attachments",
+        "buy": 10000,
+        "sell": null
+      },
+      {
+        "name": "Bottle Suppresor",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "BUIS",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Camo Net",
+        "category": "Attachments",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Canopy",
+        "category": "Attachments",
+        "buy": 5000,
+        "sell": null
+      },
+      {
+        "name": "Car Tent",
+        "category": "Attachments",
+        "buy": 30000,
+        "sell": null
+      },
+      {
+        "name": "Combat Sights",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Handgun Scope",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Hatchet",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 6000
+      },
+      {
+        "name": "Kobra",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Large Tent",
+        "category": "Attachments",
+        "buy": 20000,
+        "sell": null
+      },
+      {
+        "name": "M4 Carry Handle",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Marksman Scope",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Medium Tent",
+        "category": "Attachments",
+        "buy": 15000,
+        "sell": null
+      },
+      {
+        "name": "Mini Sights",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Nails",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Normal Suppressor",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "NVG Scopes",
+        "category": "Attachments",
+        "buy": 12000,
+        "sell": 6000
+      },
+      {
+        "name": "P1-87",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Pickaxe",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Pistol Suppressor",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Pliers",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "PSO 1",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "PSO 1 1",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "PSO 6",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "PU Scope",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Rope",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "RVN",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Saws",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Sea Chest",
+        "category": "Attachments",
+        "buy": 5000,
+        "sell": null
+      },
+      {
+        "name": "Sharpening Stones",
+        "category": "Attachments",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Shovel",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Sledgehammer",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Sporting Optic",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Standard Suppressor",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      },
+      {
+        "name": "Weapon Parts",
+        "category": "Attachments",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Wire",
+        "category": "Attachments",
+        "buy": 6000,
+        "sell": 3000
+      }
+    ],
+    "Explosives": [
+      {
+        "name": "40MM",
+        "category": "Explosives",
+        "buy": 80000,
+        "sell": 40000
+      },
+      {
+        "name": "40MM POX",
+        "category": "Explosives",
+        "buy": 80000,
+        "sell": 40000
+      },
+      {
+        "name": "Belt",
+        "category": "Explosives",
+        "buy": 5000,
+        "sell": 3000
+      },
+      {
+        "name": "Cargo Pants",
+        "category": "Explosives",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Claymore",
+        "category": "Explosives",
+        "buy": 40000,
+        "sell": 20000
+      },
+      {
+        "name": "Field Backpack",
+        "category": "Explosives",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "Field jacket",
+        "category": "Explosives",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Full Kit (Everything above)",
+        "category": "Explosives",
+        "buy": 180000,
+        "sell": null
+      },
+      {
+        "name": "Grenades",
+        "category": "Explosives",
+        "buy": 80000,
+        "sell": 40000
+      },
+      {
+        "name": "Holster",
+        "category": "Explosives",
+        "buy": 5000,
+        "sell": 5000
+      },
+      {
+        "name": "IED Case",
+        "category": "Explosives",
+        "buy": 70000,
+        "sell": 35000
+      },
+      {
+        "name": "Landmine",
+        "category": "Explosives",
+        "buy": 40000,
+        "sell": 20000
+      },
+      {
+        "name": "M79",
+        "category": "Explosives",
+        "buy": 150000,
+        "sell": 75000
+      },
+      {
+        "name": "NVG",
+        "category": "Explosives",
+        "buy": 50000,
+        "sell": 25000
+      },
+      {
+        "name": "Plastic Explosives",
+        "category": "Explosives",
+        "buy": 150000,
+        "sell": 75000
+      },
+      {
+        "name": "Plate Carrier",
+        "category": "Explosives",
+        "buy": 50000,
+        "sell": 25000
+      },
+      {
+        "name": "Pouches",
+        "category": "Explosives",
+        "buy": 5000,
+        "sell": 3000
+      },
+      {
+        "name": "POX Vials",
+        "category": "Explosives",
+        "buy": 80000,
+        "sell": 40000
+      },
+      {
+        "name": "Remote Detonator Units",
+        "category": "Explosives",
+        "buy": 20000,
+        "sell": 10000
+      },
+      {
+        "name": "Tactical Helmet",
+        "category": "Explosives",
+        "buy": 15000,
+        "sell": 7000
+      }
+    ],
+    "Weapon lists": [
+      {
+        "name": "AK 74",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "AK101",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "Alcohol",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "AUG AX",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      },
+      {
+        "name": "Bandages",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Bizon",
+        "category": "Weapon lists",
+        "buy": 16000,
+        "sell": 8000
+      },
+      {
+        "name": "Blaze",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "Blood Collection Kit",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Blood Test Kit",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Charcoal",
+        "category": "Weapon lists",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Codine",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "CZ75",
+        "category": "Weapon lists",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Deagle",
+        "category": "Weapon lists",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "DMR",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      },
+      {
+        "name": "Epinephrine Injector",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Filters",
+        "category": "Weapon lists",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "FX 45",
+        "category": "Weapon lists",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Iodine",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "IV Start Kit",
+        "category": "Weapon lists",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "KAM",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      },
+      {
+        "name": "LAR",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      },
+      {
+        "name": "M4",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      },
+      {
+        "name": "Mask",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "Mlock",
+        "category": "Weapon lists",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "Morphine",
+        "category": "Weapon lists",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "Mosin",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "MP5",
+        "category": "Weapon lists",
+        "buy": 16000,
+        "sell": 8000
+      },
+      {
+        "name": "Multi Vitamins",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "NBC Clothes",
+        "category": "Weapon lists",
+        "buy": 50000,
+        "sell": 25000
+      },
+      {
+        "name": "Pioneer",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "POX Antidote",
+        "category": "Weapon lists",
+        "buy": 10000,
+        "sell": 5000
+      },
+      {
+        "name": "R12",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "RAK",
+        "category": "Weapon lists",
+        "buy": 16000,
+        "sell": 8000
+      },
+      {
+        "name": "Saline",
+        "category": "Weapon lists",
+        "buy": 4000,
+        "sell": 2000
+      },
+      {
+        "name": "SVAL",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      },
+      {
+        "name": "Tetracycline",
+        "category": "Weapon lists",
+        "buy": 2000,
+        "sell": 1000
+      },
+      {
+        "name": "Tundra",
+        "category": "Weapon lists",
+        "buy": 30000,
+        "sell": 15000
+      },
+      {
+        "name": "USG",
+        "category": "Weapon lists",
+        "buy": 16000,
+        "sell": 8000
+      },
+      {
+        "name": "Vaiga",
+        "category": "Weapon lists",
+        "buy": 16000,
+        "sell": 8000
+      },
+      {
+        "name": "VS89",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      },
+      {
+        "name": "VSD",
+        "category": "Weapon lists",
+        "buy": 60000,
+        "sell": 30000
+      }
+    ]
+  }
+}

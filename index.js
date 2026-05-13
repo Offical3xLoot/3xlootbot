@@ -41,6 +41,21 @@ const XBL_MAX_RETRIES = Number.parseInt((process.env.XBL_MAX_RETRIES ?? "5").tri
 const XBL_BACKOFF_BASE_MS = Number.parseInt((process.env.XBL_BACKOFF_BASE_MS ?? "4000").trim(), 10);
 const XBL_BACKOFF_MAX_MS = Number.parseInt((process.env.XBL_BACKOFF_MAX_MS ?? "60000").trim(), 10);
 
+// Trader status channel rename commands
+const TRADER_STATUS_CHANNEL_ID = (process.env.TRADER_STATUS_CHANNEL_ID ?? "1278171924932857959").trim();
+
+const TRADER_STATUS_ROLE_IDS = [
+  "1257773619770294310",
+  "1257773619770294305",
+  "1304113872030011434",
+];
+
+const TRADER_STATUS_COMMANDS = {
+  "!traderonline": "🟢┃trader-status",
+  "!traderoffline": "🔴┃trader-status",
+  "!traderbreak": "🟡┃trader-status",
+};
+
 function die(msg) {
   console.error(msg);
   process.exit(1);
@@ -116,8 +131,10 @@ function loadState() {
     for (const [k, v] of Object.entries(trusted || {})) {
       const kk = String(k ?? "").trim().toLowerCase();
       if (!kk) continue;
+
       const gt = normalizeGamertag(v?.gamertag ?? "");
       if (!gt) continue;
+
       normalizedTrusted[kk] = {
         gamertag: gt,
         addedMs: Number.parseInt(String(v?.addedMs ?? ""), 10) || nowMs(),
@@ -163,15 +180,21 @@ function isTrustedKey(k) { return !!state.trusted?.[k]; }
 function trustedDisplayForKey(k) { return state.trusted?.[k]?.gamertag || k; }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
   partials: [Partials.Message, Partials.Channel],
 });
 
 function isStaff(interaction) {
   const perms = interaction.memberPermissions;
   const hasManageGuild = perms?.has(PermissionsBitField.Flags.ManageGuild);
+
   if (hasManageGuild) return true;
   if (STAFF_ROLE_ID && interaction.member?.roles?.cache?.has?.(STAFF_ROLE_ID)) return true;
+
   return false;
 }
 
@@ -236,8 +259,10 @@ async function fetchJsonWithTimeout(url, options, timeoutMs = 8000) {
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     const text = await res.text();
+
     let data = null;
     try { data = JSON.parse(text); } catch {}
+
     return { res, data };
   } finally {
     clearTimeout(timer);
@@ -255,8 +280,10 @@ class RateLimitError extends Error {
 function parseRetryAfterMs(res) {
   const ra = res.headers?.get?.("retry-after");
   if (!ra) return null;
+
   const sec = Number.parseFloat(ra);
   if (!Number.isFinite(sec)) return null;
+
   return Math.max(0, Math.round(sec * 1000));
 }
 
@@ -323,6 +350,7 @@ async function openXblSearch(gamertag) {
     people[0];
 
   if (!best?.xuid) throw new Error("Search result missing XUID.");
+
   return best;
 }
 
@@ -388,6 +416,7 @@ async function fetchOpenXblMergedProfile(gamertag) {
   const person = await openXblSearch(gamertag);
   const accData = await openXblAccount(person.xuid);
   const settingsMap = settingsToMap(accData?.profileUsers?.[0]?.settings);
+
   const socialNums = deepFindNumbers({ person, accData }, new Set([
     "followerscount",
     "followercount",
@@ -419,6 +448,7 @@ async function fetchOpenXblMergedProfile(gamertag) {
 function addFieldIf(embed, name, value, inline = true) {
   const v = (value ?? "").toString().trim();
   if (!v) return;
+
   embed.addFields({ name, value: v, inline });
 }
 
@@ -489,9 +519,11 @@ function addFlagged(profile) {
     });
   } else {
     p.gamertag = profile.gamertag;
+
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) {
       p.gamerscore = profile.gamerscore;
     }
+
     p.lastSeenMs = t;
   }
 
@@ -505,9 +537,11 @@ function addFlagged(profile) {
     });
   } else {
     a.gamertag = profile.gamertag;
+
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) {
       a.lastKnownGS = profile.gamerscore;
     }
+
     a.lastSeenMs = t;
   }
 
@@ -622,7 +656,9 @@ async function sendDigestIfDue() {
       .setColor(0xff0000)
       .setTimestamp();
 
-    if (chunks.length > 1) embed.setFooter({ text: `Page ${i + 1}/${chunks.length}` });
+    if (chunks.length > 1) {
+      embed.setFooter({ text: `Page ${i + 1}/${chunks.length}` });
+    }
 
     await sendEmbedToChannel(digestChan.guild, DIGEST_CHANNEL_ID, embed);
   }
@@ -636,7 +672,6 @@ async function pollOnlineList() {
   if (!ONLINE_LIST_CHANNEL_ID) return;
 
   const channel = await client.channels.fetch(ONLINE_LIST_CHANNEL_ID).catch(() => null);
-
   if (!channel || !("messages" in channel)) return;
 
   const messages = await channel.messages.fetch({ limit: 5 }).catch(() => null);
@@ -762,6 +797,61 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
     return e;
   });
 }
+
+async function handleTraderStatusCommand(message) {
+  try {
+    if (message.author.bot) return false;
+    if (!message.guild) return false;
+
+    const content = message.content.toLowerCase().trim();
+    const newName = TRADER_STATUS_COMMANDS[content];
+
+    if (!newName) return false;
+
+    const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
+
+    const hasRole = member?.roles?.cache?.some((role) =>
+      TRADER_STATUS_ROLE_IDS.includes(role.id)
+    );
+
+    if (!hasRole) {
+      await message.reply("You do not have permission to use this command.");
+      return true;
+    }
+
+    const channel = await message.guild.channels.fetch(TRADER_STATUS_CHANNEL_ID).catch(() => null);
+
+    if (!channel || typeof channel.setName !== "function") {
+      await message.reply("Trader status channel not found, or it cannot be renamed.");
+      return true;
+    }
+
+    const botMember = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
+    const perms = botMember ? channel.permissionsFor(botMember) : null;
+
+    if (!perms?.has(PermissionsBitField.Flags.ManageChannels)) {
+      await message.reply("I need the **Manage Channels** permission to rename the trader status channel.");
+      return true;
+    }
+
+    if (channel.name === newName) {
+      await message.reply(`Trader status is already set to ${newName}`);
+      return true;
+    }
+
+    await channel.setName(newName, `Trader status command used by ${message.author.tag}`);
+    await message.reply(`Trader status updated to ${newName}`);
+    return true;
+  } catch (err) {
+    console.error("[TRADER STATUS ERROR]", err?.message ?? err);
+    await message.reply("Something went wrong while updating trader status.").catch(() => null);
+    return true;
+  }
+}
+
+client.on("messageCreate", async (message) => {
+  await handleTraderStatusCommand(message);
+});
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;

@@ -7,6 +7,7 @@ import {
   REST,
   Routes,
   SlashCommandBuilder,
+  MessageFlags,
 } from "discord.js";
 import fetch from "node-fetch";
 import fs from "node:fs";
@@ -28,8 +29,8 @@ const MODLOG_CHANNEL_ID = (process.env.MODLOG_CHANNEL_ID ?? "").trim();
 const DIGEST_CHANNEL_ID = (process.env.DIGEST_CHANNEL_ID ?? MODLOG_CHANNEL_ID).trim();
 const DIGEST_INTERVAL_HOURS = Number.parseInt((process.env.DIGEST_INTERVAL_HOURS ?? "1").trim(), 10);
 
-const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "4000").trim(), 10);
-const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "180").trim(), 10);
+const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "8000").trim(), 10);
+const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "300").trim(), 10);
 
 const DATA_DIR = (process.env.DATA_DIR ?? "./data").trim();
 const IMMEDIATE_FLAG_LOGS =
@@ -37,9 +38,9 @@ const IMMEDIATE_FLAG_LOGS =
 const RESET_STATE = (process.env.RESET_STATE ?? "").trim().toLowerCase() === "true";
 const STAFF_ROLE_ID = (process.env.STAFF_ROLE_ID ?? "").trim();
 
-const XBL_MAX_RETRIES = Number.parseInt((process.env.XBL_MAX_RETRIES ?? "5").trim(), 10);
-const XBL_BACKOFF_BASE_MS = Number.parseInt((process.env.XBL_BACKOFF_BASE_MS ?? "4000").trim(), 10);
-const XBL_BACKOFF_MAX_MS = Number.parseInt((process.env.XBL_BACKOFF_MAX_MS ?? "60000").trim(), 10);
+const XBL_MAX_RETRIES = Number.parseInt((process.env.XBL_MAX_RETRIES ?? "8").trim(), 10);
+const XBL_BACKOFF_BASE_MS = Number.parseInt((process.env.XBL_BACKOFF_BASE_MS ?? "10000").trim(), 10);
+const XBL_BACKOFF_MAX_MS = Number.parseInt((process.env.XBL_BACKOFF_MAX_MS ?? "120000").trim(), 10);
 
 // Trader status channel rename commands
 const TRADER_STATUS_CHANNEL_ID = (process.env.TRADER_STATUS_CHANNEL_ID ?? "1278171924932857959").trim();
@@ -80,26 +81,36 @@ function nowMs() { return Date.now(); }
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 function normalizeGamertag(s) { return (s ?? "").replace(/\s+/g, " ").trim(); }
 function gtKey(s) { return normalizeGamertag(s).toLowerCase(); }
+
 function stripMarkdown(s) {
-  return (s ?? "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1").replace(/`(.+?)`/g, "$1").trim();
+  return (s ?? "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .trim();
 }
 
 function parseGamertagList(input) {
   const raw = (input ?? "").trim();
   if (!raw) return [];
-  return raw.split(",").map((x) => normalizeGamertag(x)).filter((x) => x.length >= 2 && x.length <= 20);
+  return raw
+    .split(",")
+    .map((x) => normalizeGamertag(x))
+    .filter((x) => x.length >= 2 && x.length <= 20);
 }
 
 function loadState() {
   try {
     const raw = fs.readFileSync(STATE_FILE, "utf8");
     const parsed = JSON.parse(raw);
+
     const checked = new Set(Array.isArray(parsed?.checked) ? parsed.checked : []);
     const pending = new Map();
 
     if (parsed?.pending && typeof parsed.pending === "object") {
       for (const [k, v] of Object.entries(parsed.pending)) {
         if (!k || !v) continue;
+
         pending.set(k, {
           gamertag: String(v.gamertag ?? ""),
           gamerscore: Number.parseInt(String(v.gamerscore ?? ""), 10),
@@ -115,6 +126,7 @@ function loadState() {
     if (parsed?.flaggedAll && typeof parsed.flaggedAll === "object") {
       for (const [k, v] of Object.entries(parsed.flaggedAll)) {
         if (!k || !v) continue;
+
         flaggedAll.set(k, {
           gamertag: String(v.gamertag ?? ""),
           lastKnownGS: Number.parseInt(String(v.lastKnownGS ?? ""), 10),
@@ -125,9 +137,12 @@ function loadState() {
     }
 
     let trusted = {};
-    if (parsed?.trusted && typeof parsed.trusted === "object" && !Array.isArray(parsed.trusted)) trusted = parsed.trusted;
+    if (parsed?.trusted && typeof parsed.trusted === "object" && !Array.isArray(parsed.trusted)) {
+      trusted = parsed.trusted;
+    }
 
     const normalizedTrusted = {};
+
     for (const [k, v] of Object.entries(trusted || {})) {
       const kk = String(k ?? "").trim().toLowerCase();
       if (!kk) continue;
@@ -143,7 +158,13 @@ function loadState() {
 
     return { checked, pending, lastDigestMs, flaggedAll, trusted: normalizedTrusted };
   } catch {
-    return { checked: new Set(), pending: new Map(), lastDigestMs: 0, flaggedAll: new Map(), trusted: {} };
+    return {
+      checked: new Set(),
+      pending: new Map(),
+      lastDigestMs: 0,
+      flaggedAll: new Map(),
+      trusted: {},
+    };
   }
 }
 
@@ -173,6 +194,7 @@ if (RESET_STATE) {
     trusted: {},
     flaggedAll: new Map(),
   };
+
   saveState();
 }
 
@@ -212,7 +234,7 @@ async function autoDeployCommandsIfEnabled() {
 
     new SlashCommandBuilder()
       .setName("xinfo")
-      .setDescription("Fetch detailed Xbox profile info (only shows fields that are available).")
+      .setDescription("Fetch detailed Xbox profile info. Only shows fields that are available.")
       .addStringOption((opt) =>
         opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
       ),
@@ -232,7 +254,7 @@ async function autoDeployCommandsIfEnabled() {
 
     new SlashCommandBuilder()
       .setName("xtrust")
-      .setDescription("Manage trusted gamertags (whitelist). You can add/remove multiple separated by commas.")
+      .setDescription("Manage trusted gamertags. You can add/remove multiple separated by commas.")
       .addStringOption((opt) =>
         opt.setName("action")
           .setDescription("add/remove/list")
@@ -324,6 +346,7 @@ async function openXblFetchWithRetry(url) {
           err.retryAfterMs ?? XBL_BACKOFF_BASE_MS * Math.pow(2, attempt - 1)
         );
 
+        console.warn(`[OPENXBL] Rate limited. Waiting ${Math.round(backoff / 1000)}s before retry ${attempt}/${XBL_MAX_RETRIES}.`);
         await sleep(backoff);
         continue;
       }
@@ -763,6 +786,7 @@ async function processQueue() {
 
           globalCooldownUntilMs = nowMs() + backoff;
 
+          console.warn(`[OPENXBL] Rate limited while checking ${item.gt}. Waiting ${Math.round(backoff / 1000)}s.`);
           await sleep(Math.min(backoff, 15000));
 
           enqueueGamertag(item.gt, item.guild);
@@ -862,12 +886,12 @@ client.on("interactionCreate", async (interaction) => {
     if ((cmd === "xflagged" || cmd === "xtrust") && !isStaff(interaction)) {
       await interaction.reply({
         content: "You don’t have permission to use that command.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await interaction.deferReply({ ephemeral: false });
+    await interaction.deferReply();
 
     if (cmd === "xtrust") {
       const action = (interaction.options.getString("action", true) ?? "").toLowerCase();
@@ -1124,13 +1148,17 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     console.error("interaction error:", err?.message ?? err);
 
+    const msg = err instanceof RateLimitError
+      ? "OpenXBL is rate limiting requests right now. Try again in a couple minutes."
+      : "Something went wrong while processing that request.";
+
     try {
       if (interaction.deferred || interaction.replied) {
-        await interaction.editReply("Something went wrong while processing that request.");
+        await interaction.editReply(msg);
       } else {
         await interaction.reply({
-          content: "Something went wrong while processing that request.",
-          ephemeral: true,
+          content: msg,
+          flags: MessageFlags.Ephemeral,
         });
       }
     } catch {}

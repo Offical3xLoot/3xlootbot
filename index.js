@@ -29,8 +29,8 @@ const MODLOG_CHANNEL_ID = (process.env.MODLOG_CHANNEL_ID ?? "").trim();
 const DIGEST_CHANNEL_ID = (process.env.DIGEST_CHANNEL_ID ?? MODLOG_CHANNEL_ID).trim();
 const DIGEST_INTERVAL_HOURS = Number.parseInt((process.env.DIGEST_INTERVAL_HOURS ?? "1").trim(), 10);
 
-const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "8000").trim(), 10);
-const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "300").trim(), 10);
+const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "30000").trim(), 10);
+const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "900").trim(), 10);
 
 const DATA_DIR = (process.env.DATA_DIR ?? "./data").trim();
 const IMMEDIATE_FLAG_LOGS =
@@ -38,9 +38,10 @@ const IMMEDIATE_FLAG_LOGS =
 const RESET_STATE = (process.env.RESET_STATE ?? "").trim().toLowerCase() === "true";
 const STAFF_ROLE_ID = (process.env.STAFF_ROLE_ID ?? "").trim();
 
-const XBL_MAX_RETRIES = Number.parseInt((process.env.XBL_MAX_RETRIES ?? "8").trim(), 10);
-const XBL_BACKOFF_BASE_MS = Number.parseInt((process.env.XBL_BACKOFF_BASE_MS ?? "10000").trim(), 10);
-const XBL_BACKOFF_MAX_MS = Number.parseInt((process.env.XBL_BACKOFF_MAX_MS ?? "120000").trim(), 10);
+const XBL_MAX_RETRIES = Number.parseInt((process.env.XBL_MAX_RETRIES ?? "1").trim(), 10);
+const XBL_BACKOFF_BASE_MS = Number.parseInt((process.env.XBL_BACKOFF_BASE_MS ?? "60000").trim(), 10);
+const XBL_BACKOFF_MAX_MS = Number.parseInt((process.env.XBL_BACKOFF_MAX_MS ?? "300000").trim(), 10);
+const XBL_GLOBAL_COOLDOWN_MS = Number.parseInt((process.env.XBL_GLOBAL_COOLDOWN_MS ?? "900000").trim(), 10);
 
 // Trader status channel rename commands
 const TRADER_STATUS_CHANNEL_ID = (process.env.TRADER_STATUS_CHANNEL_ID ?? "1278171924932857959").trim();
@@ -81,36 +82,26 @@ function nowMs() { return Date.now(); }
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 function normalizeGamertag(s) { return (s ?? "").replace(/\s+/g, " ").trim(); }
 function gtKey(s) { return normalizeGamertag(s).toLowerCase(); }
-
 function stripMarkdown(s) {
-  return (s ?? "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/__(.+?)__/g, "$1")
-    .replace(/`(.+?)`/g, "$1")
-    .trim();
+  return (s ?? "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1").replace(/`(.+?)`/g, "$1").trim();
 }
 
 function parseGamertagList(input) {
   const raw = (input ?? "").trim();
   if (!raw) return [];
-  return raw
-    .split(",")
-    .map((x) => normalizeGamertag(x))
-    .filter((x) => x.length >= 2 && x.length <= 20);
+  return raw.split(",").map((x) => normalizeGamertag(x)).filter((x) => x.length >= 2 && x.length <= 20);
 }
 
 function loadState() {
   try {
     const raw = fs.readFileSync(STATE_FILE, "utf8");
     const parsed = JSON.parse(raw);
-
     const checked = new Set(Array.isArray(parsed?.checked) ? parsed.checked : []);
     const pending = new Map();
 
     if (parsed?.pending && typeof parsed.pending === "object") {
       for (const [k, v] of Object.entries(parsed.pending)) {
         if (!k || !v) continue;
-
         pending.set(k, {
           gamertag: String(v.gamertag ?? ""),
           gamerscore: Number.parseInt(String(v.gamerscore ?? ""), 10),
@@ -126,7 +117,6 @@ function loadState() {
     if (parsed?.flaggedAll && typeof parsed.flaggedAll === "object") {
       for (const [k, v] of Object.entries(parsed.flaggedAll)) {
         if (!k || !v) continue;
-
         flaggedAll.set(k, {
           gamertag: String(v.gamertag ?? ""),
           lastKnownGS: Number.parseInt(String(v.lastKnownGS ?? ""), 10),
@@ -137,34 +127,20 @@ function loadState() {
     }
 
     let trusted = {};
-    if (parsed?.trusted && typeof parsed.trusted === "object" && !Array.isArray(parsed.trusted)) {
-      trusted = parsed.trusted;
-    }
+    if (parsed?.trusted && typeof parsed.trusted === "object" && !Array.isArray(parsed.trusted)) trusted = parsed.trusted;
 
     const normalizedTrusted = {};
-
     for (const [k, v] of Object.entries(trusted || {})) {
       const kk = String(k ?? "").trim().toLowerCase();
       if (!kk) continue;
-
       const gt = normalizeGamertag(v?.gamertag ?? "");
       if (!gt) continue;
-
-      normalizedTrusted[kk] = {
-        gamertag: gt,
-        addedMs: Number.parseInt(String(v?.addedMs ?? ""), 10) || nowMs(),
-      };
+      normalizedTrusted[kk] = { gamertag: gt, addedMs: Number.parseInt(String(v?.addedMs ?? ""), 10) || nowMs() };
     }
 
     return { checked, pending, lastDigestMs, flaggedAll, trusted: normalizedTrusted };
   } catch {
-    return {
-      checked: new Set(),
-      pending: new Map(),
-      lastDigestMs: 0,
-      flaggedAll: new Map(),
-      trusted: {},
-    };
+    return { checked: new Set(), pending: new Map(), lastDigestMs: 0, flaggedAll: new Map(), trusted: {} };
   }
 }
 
@@ -194,7 +170,6 @@ if (RESET_STATE) {
     trusted: {},
     flaggedAll: new Map(),
   };
-
   saveState();
 }
 
@@ -213,10 +188,8 @@ const client = new Client({
 function isStaff(interaction) {
   const perms = interaction.memberPermissions;
   const hasManageGuild = perms?.has(PermissionsBitField.Flags.ManageGuild);
-
   if (hasManageGuild) return true;
   if (STAFF_ROLE_ID && interaction.member?.roles?.cache?.has?.(STAFF_ROLE_ID)) return true;
-
   return false;
 }
 
@@ -228,16 +201,12 @@ async function autoDeployCommandsIfEnabled() {
     new SlashCommandBuilder()
       .setName("xcheck")
       .setDescription("Check an Xbox gamertag's gamerscore against the configured threshold.")
-      .addStringOption((opt) =>
-        opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
-      ),
+      .addStringOption((opt) => opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)),
 
     new SlashCommandBuilder()
       .setName("xinfo")
-      .setDescription("Fetch detailed Xbox profile info. Only shows fields that are available.")
-      .addStringOption((opt) =>
-        opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
-      ),
+      .setDescription("Fetch detailed Xbox profile info (only shows fields that are available).")
+      .addStringOption((opt) => opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)),
 
     new SlashCommandBuilder()
       .setName("xflagged")
@@ -254,7 +223,7 @@ async function autoDeployCommandsIfEnabled() {
 
     new SlashCommandBuilder()
       .setName("xtrust")
-      .setDescription("Manage trusted gamertags. You can add/remove multiple separated by commas.")
+      .setDescription("Manage trusted gamertags (whitelist). You can add/remove multiple separated by commas.")
       .addStringOption((opt) =>
         opt.setName("action")
           .setDescription("add/remove/list")
@@ -265,9 +234,7 @@ async function autoDeployCommandsIfEnabled() {
           )
           .setRequired(true)
       )
-      .addStringOption((opt) =>
-        opt.setName("gamertag").setDescription("Gamertag(s).").setRequired(false)
-      ),
+      .addStringOption((opt) => opt.setName("gamertag").setDescription("Gamertag(s).").setRequired(false)),
   ].map((c) => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
@@ -339,11 +306,13 @@ async function openXblFetchWithRetry(url) {
       if (err instanceof RateLimitError) {
         attempt += 1;
 
-        if (attempt > XBL_MAX_RETRIES) throw err;
+        if (attempt > XBL_MAX_RETRIES) {
+          throw err;
+        }
 
         const backoff = Math.min(
           XBL_BACKOFF_MAX_MS,
-          err.retryAfterMs ?? XBL_BACKOFF_BASE_MS * Math.pow(2, attempt - 1)
+          err.retryAfterMs ?? XBL_BACKOFF_BASE_MS
         );
 
         console.warn(`[OPENXBL] Rate limited. Waiting ${Math.round(backoff / 1000)}s before retry ${attempt}/${XBL_MAX_RETRIES}.`);
@@ -372,7 +341,9 @@ async function openXblSearch(gamertag) {
     people.find((p) => (p?.modernGamertag ?? "").toLowerCase() === wantedLower) ||
     people[0];
 
-  if (!best?.xuid) throw new Error("Search result missing XUID.");
+  if (!best?.xuid) {
+    throw new Error("Search result missing XUID.");
+  }
 
   return best;
 }
@@ -468,10 +439,21 @@ async function fetchOpenXblMergedProfile(gamertag) {
   };
 }
 
+async function fetchOpenXblBasicProfile(gamertag) {
+  const person = await openXblSearch(gamertag);
+
+  return {
+    gamertag: person.gamertag || person.modernGamertag || normalizeGamertag(gamertag),
+    xuid: person.xuid,
+    gamerscore: parseIntOrNull(person.gamerscore ?? person?.detail?.gamerscore),
+    tier: person?.detail?.accountTier || null,
+    gamerpic: person?.displayPicRaw || person?.displayPic || null,
+  };
+}
+
 function addFieldIf(embed, name, value, inline = true) {
   const v = (value ?? "").toString().trim();
   if (!v) return;
-
   embed.addFields({ name, value: v, inline });
 }
 
@@ -542,11 +524,9 @@ function addFlagged(profile) {
     });
   } else {
     p.gamertag = profile.gamertag;
-
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) {
       p.gamerscore = profile.gamerscore;
     }
-
     p.lastSeenMs = t;
   }
 
@@ -560,11 +540,9 @@ function addFlagged(profile) {
     });
   } else {
     a.gamertag = profile.gamertag;
-
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) {
       a.lastKnownGS = profile.gamerscore;
     }
-
     a.lastSeenMs = t;
   }
 
@@ -694,17 +672,27 @@ async function sendDigestIfDue() {
 async function pollOnlineList() {
   if (!ONLINE_LIST_CHANNEL_ID) return;
 
+  const now = nowMs();
+
+  if (globalCooldownUntilMs > now) {
+    const waitSec = Math.ceil((globalCooldownUntilMs - now) / 1000);
+    console.warn(`[OPENXBL] Global cooldown active. Skipping poll for ${waitSec}s.`);
+    return;
+  }
+
   const channel = await client.channels.fetch(ONLINE_LIST_CHANNEL_ID).catch(() => null);
   if (!channel || !("messages" in channel)) return;
 
-  const messages = await channel.messages.fetch({ limit: 5 }).catch(() => null);
+  const messages = await channel.messages.fetch({ limit: 1 }).catch(() => null);
   const newest = messages?.first();
 
   if (!newest) return;
 
   const gts = extractGamertagsFromEmbeds(newest);
 
-  for (const gt of gts) enqueueGamertag(gt, newest.guild);
+  for (const gt of gts) {
+    enqueueGamertag(gt, newest.guild);
+  }
 }
 
 const queue = [];
@@ -726,6 +714,7 @@ function enqueueGamertag(gt, guild) {
 
 async function processQueue() {
   if (working) return;
+
   working = true;
 
   try {
@@ -741,18 +730,22 @@ async function processQueue() {
       const now = nowMs();
 
       if (globalCooldownUntilMs > now) {
-        await sleep(globalCooldownUntilMs - now);
+        const waitMs = globalCooldownUntilMs - now;
+        console.warn(`[OPENXBL] Global cooldown active. Pausing queue for ${Math.ceil(waitMs / 1000)}s.`);
+        await sleep(waitMs);
       }
 
       try {
-        const merged = await fetchOpenXblMergedProfile(item.gt);
+        const merged = await fetchOpenXblBasicProfile(item.gt);
 
         state.checked.add(item.k);
         saveState();
 
         const gs = merged.gamerscore;
 
-        if (gs !== null && gs < GS_THRESHOLD) {
+        if (gs === null || gs === undefined) {
+          console.warn(`[SKIPPED] ${item.gt}: Gamerscore unavailable from search result. Marked as checked.`);
+        } else if (gs < GS_THRESHOLD) {
           addFlagged({ gamertag: merged.gamertag, gamerscore: gs });
 
           if (IMMEDIATE_FLAG_LOGS && item.guild && MODLOG_CHANNEL_ID) {
@@ -779,19 +772,19 @@ async function processQueue() {
         }
       } catch (err) {
         if (err instanceof RateLimitError) {
-          const backoff = Math.min(
-            XBL_BACKOFF_MAX_MS,
-            err.retryAfterMs ?? XBL_BACKOFF_BASE_MS
-          );
+          globalCooldownUntilMs = nowMs() + XBL_GLOBAL_COOLDOWN_MS;
+          console.warn(`[OPENXBL] Rate limited while checking ${item.gt}. Entering ${Math.round(XBL_GLOBAL_COOLDOWN_MS / 60000)} minute cooldown.`);
+          break;
+        }
 
-          globalCooldownUntilMs = nowMs() + backoff;
+        const msg = String(err?.message ?? err);
 
-          console.warn(`[OPENXBL] Rate limited while checking ${item.gt}. Waiting ${Math.round(backoff / 1000)}s.`);
-          await sleep(Math.min(backoff, 15000));
-
-          enqueueGamertag(item.gt, item.guild);
+        if (msg.toLowerCase().includes("gamertag not found")) {
+          state.checked.add(item.k);
+          saveState();
+          console.warn(`[SKIPPED] ${item.gt}: Gamertag not found. Marked as checked.`);
         } else {
-          console.error(`[ERROR] ${item.gt}:`, err?.message ?? err);
+          console.error(`[ERROR] ${item.gt}:`, msg);
         }
       }
 
@@ -1095,7 +1088,9 @@ client.on("interactionCreate", async (interaction) => {
       addFieldIf(embed, "Result", flaggedByGS ? "FLAGGED" : "OK", false);
       addFieldIf(embed, "Tier", merged.tier ? String(merged.tier) : "", true);
 
-      if (merged.gamerpic) embed.setThumbnail(merged.gamerpic);
+      if (merged.gamerpic) {
+        embed.setThumbnail(merged.gamerpic);
+      }
 
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -1106,7 +1101,9 @@ client.on("interactionCreate", async (interaction) => {
       .setColor(flaggedByGS ? 0xff4d4d : 0x2b2d31)
       .setTimestamp();
 
-    if (merged.gamerpic) embed.setThumbnail(merged.gamerpic);
+    if (merged.gamerpic) {
+      embed.setThumbnail(merged.gamerpic);
+    }
 
     addFieldIf(embed, "Gamertag", merged.gamertag, true);
     addFieldIf(embed, "XUID", merged.xuid ? String(merged.xuid) : "", true);
@@ -1148,11 +1145,11 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     console.error("interaction error:", err?.message ?? err);
 
-    const msg = err instanceof RateLimitError
-      ? "OpenXBL is rate limiting requests right now. Try again in a couple minutes."
-      : "Something went wrong while processing that request.";
-
     try {
+      const msg = err instanceof RateLimitError
+        ? "OpenXBL is rate limiting requests right now. Try again in a couple minutes."
+        : "Something went wrong while processing that request.";
+
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply(msg);
       } else {

@@ -29,7 +29,7 @@ const MODLOG_CHANNEL_ID = (process.env.MODLOG_CHANNEL_ID ?? "").trim();
 const DIGEST_CHANNEL_ID = (process.env.DIGEST_CHANNEL_ID ?? MODLOG_CHANNEL_ID).trim();
 const DIGEST_INTERVAL_HOURS = Number.parseInt((process.env.DIGEST_INTERVAL_HOURS ?? "1").trim(), 10);
 
-const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "30000").trim(), 10);
+const SCRUB_DELAY_MS = Number.parseInt((process.env.SCRUB_DELAY_MS ?? "45000").trim(), 10);
 const POLL_SECONDS = Number.parseInt((process.env.POLL_SECONDS ?? "900").trim(), 10);
 
 const DATA_DIR = (process.env.DATA_DIR ?? "./data").trim();
@@ -45,6 +45,7 @@ const XBL_GLOBAL_COOLDOWN_MS = Number.parseInt((process.env.XBL_GLOBAL_COOLDOWN_
 
 // Trader status channel rename commands
 const TRADER_STATUS_CHANNEL_ID = (process.env.TRADER_STATUS_CHANNEL_ID ?? "1278171924932857959").trim();
+const TRADER_PING_ROLE_ID = (process.env.TRADER_PING_ROLE_ID ?? "1266136461682409565").trim();
 
 const TRADER_STATUS_ROLE_IDS = [
   "1257773619770294310",
@@ -52,10 +53,22 @@ const TRADER_STATUS_ROLE_IDS = [
   "1304113872030011434",
 ];
 
+const TRADER_STATUS_NAMES = {
+  online: "🟢┃trader-status",
+  break: "🟡┃trader-status",
+  offline: "🔴┃trader-status",
+};
+
 const TRADER_STATUS_COMMANDS = {
-  "!traderonline": "🟢┃trader-status",
-  "!traderoffline": "🔴┃trader-status",
-  "!traderbreak": "🟡┃trader-status",
+  "!traderopen": "open",
+  "!traderonline": "open",
+
+  "!traderbreak": "break",
+
+  "!traderclose": "close",
+  "!traderoffline": "close",
+
+  "!traderstats": "stats",
 };
 
 function die(msg) {
@@ -78,30 +91,60 @@ console.log("Booting 3xBot...");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const STATE_FILE = path.resolve(DATA_DIR, "state.json");
 
-function nowMs() { return Date.now(); }
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-function normalizeGamertag(s) { return (s ?? "").replace(/\s+/g, " ").trim(); }
-function gtKey(s) { return normalizeGamertag(s).toLowerCase(); }
+function nowMs() {
+  return Date.now();
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function normalizeGamertag(s) {
+  return (s ?? "").replace(/\s+/g, " ").trim();
+}
+
+function gtKey(s) {
+  return normalizeGamertag(s).toLowerCase();
+}
+
 function stripMarkdown(s) {
-  return (s ?? "").replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1").replace(/`(.+?)`/g, "$1").trim();
+  return (s ?? "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .trim();
 }
 
 function parseGamertagList(input) {
   const raw = (input ?? "").trim();
   if (!raw) return [];
-  return raw.split(",").map((x) => normalizeGamertag(x)).filter((x) => x.length >= 2 && x.length <= 20);
+
+  return raw
+    .split(",")
+    .map((x) => normalizeGamertag(x))
+    .filter((x) => x.length >= 2 && x.length <= 20);
+}
+
+function defaultTraderStats() {
+  return {
+    weekStartMs: 0,
+    totals: {},
+    activeSessions: {},
+  };
 }
 
 function loadState() {
   try {
     const raw = fs.readFileSync(STATE_FILE, "utf8");
     const parsed = JSON.parse(raw);
+
     const checked = new Set(Array.isArray(parsed?.checked) ? parsed.checked : []);
     const pending = new Map();
 
     if (parsed?.pending && typeof parsed.pending === "object") {
       for (const [k, v] of Object.entries(parsed.pending)) {
         if (!k || !v) continue;
+
         pending.set(k, {
           gamertag: String(v.gamertag ?? ""),
           gamerscore: Number.parseInt(String(v.gamerscore ?? ""), 10),
@@ -117,6 +160,7 @@ function loadState() {
     if (parsed?.flaggedAll && typeof parsed.flaggedAll === "object") {
       for (const [k, v] of Object.entries(parsed.flaggedAll)) {
         if (!k || !v) continue;
+
         flaggedAll.set(k, {
           gamertag: String(v.gamertag ?? ""),
           lastKnownGS: Number.parseInt(String(v.lastKnownGS ?? ""), 10),
@@ -127,20 +171,49 @@ function loadState() {
     }
 
     let trusted = {};
-    if (parsed?.trusted && typeof parsed.trusted === "object" && !Array.isArray(parsed.trusted)) trusted = parsed.trusted;
+    if (parsed?.trusted && typeof parsed.trusted === "object" && !Array.isArray(parsed.trusted)) {
+      trusted = parsed.trusted;
+    }
 
     const normalizedTrusted = {};
     for (const [k, v] of Object.entries(trusted || {})) {
       const kk = String(k ?? "").trim().toLowerCase();
       if (!kk) continue;
+
       const gt = normalizeGamertag(v?.gamertag ?? "");
       if (!gt) continue;
-      normalizedTrusted[kk] = { gamertag: gt, addedMs: Number.parseInt(String(v?.addedMs ?? ""), 10) || nowMs() };
+
+      normalizedTrusted[kk] = {
+        gamertag: gt,
+        addedMs: Number.parseInt(String(v?.addedMs ?? ""), 10) || nowMs(),
+      };
     }
 
-    return { checked, pending, lastDigestMs, flaggedAll, trusted: normalizedTrusted };
+    const traderStats = parsed?.traderStats && typeof parsed.traderStats === "object"
+      ? parsed.traderStats
+      : defaultTraderStats();
+
+    if (!traderStats.totals || typeof traderStats.totals !== "object") traderStats.totals = {};
+    if (!traderStats.activeSessions || typeof traderStats.activeSessions !== "object") traderStats.activeSessions = {};
+    if (!Number.isFinite(Number(traderStats.weekStartMs))) traderStats.weekStartMs = 0;
+
+    return {
+      checked,
+      pending,
+      lastDigestMs,
+      flaggedAll,
+      trusted: normalizedTrusted,
+      traderStats,
+    };
   } catch {
-    return { checked: new Set(), pending: new Map(), lastDigestMs: 0, flaggedAll: new Map(), trusted: {} };
+    return {
+      checked: new Set(),
+      pending: new Map(),
+      lastDigestMs: 0,
+      flaggedAll: new Map(),
+      trusted: {},
+      traderStats: defaultTraderStats(),
+    };
   }
 }
 
@@ -157,6 +230,7 @@ function saveState() {
     lastDigestMs: state.lastDigestMs,
     trusted: state.trusted,
     flaggedAll: flaggedAllObj,
+    traderStats: state.traderStats,
   }, null, 2), "utf8");
 }
 
@@ -169,12 +243,19 @@ if (RESET_STATE) {
     lastDigestMs: 0,
     trusted: {},
     flaggedAll: new Map(),
+    traderStats: defaultTraderStats(),
   };
+
   saveState();
 }
 
-function isTrustedKey(k) { return !!state.trusted?.[k]; }
-function trustedDisplayForKey(k) { return state.trusted?.[k]?.gamertag || k; }
+function isTrustedKey(k) {
+  return !!state.trusted?.[k];
+}
+
+function trustedDisplayForKey(k) {
+  return state.trusted?.[k]?.gamertag || k;
+}
 
 const client = new Client({
   intents: [
@@ -188,8 +269,10 @@ const client = new Client({
 function isStaff(interaction) {
   const perms = interaction.memberPermissions;
   const hasManageGuild = perms?.has(PermissionsBitField.Flags.ManageGuild);
+
   if (hasManageGuild) return true;
   if (STAFF_ROLE_ID && interaction.member?.roles?.cache?.has?.(STAFF_ROLE_ID)) return true;
+
   return false;
 }
 
@@ -201,12 +284,16 @@ async function autoDeployCommandsIfEnabled() {
     new SlashCommandBuilder()
       .setName("xcheck")
       .setDescription("Check an Xbox gamertag's gamerscore against the configured threshold.")
-      .addStringOption((opt) => opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)),
+      .addStringOption((opt) =>
+        opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
+      ),
 
     new SlashCommandBuilder()
       .setName("xinfo")
-      .setDescription("Fetch detailed Xbox profile info (only shows fields that are available).")
-      .addStringOption((opt) => opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)),
+      .setDescription("Fetch detailed Xbox profile info. Only shows fields that are available.")
+      .addStringOption((opt) =>
+        opt.setName("gamertag").setDescription("Xbox gamertag").setRequired(true)
+      ),
 
     new SlashCommandBuilder()
       .setName("xflagged")
@@ -223,7 +310,7 @@ async function autoDeployCommandsIfEnabled() {
 
     new SlashCommandBuilder()
       .setName("xtrust")
-      .setDescription("Manage trusted gamertags (whitelist). You can add/remove multiple separated by commas.")
+      .setDescription("Manage trusted gamertags. You can add/remove multiple separated by commas.")
       .addStringOption((opt) =>
         opt.setName("action")
           .setDescription("add/remove/list")
@@ -234,7 +321,9 @@ async function autoDeployCommandsIfEnabled() {
           )
           .setRequired(true)
       )
-      .addStringOption((opt) => opt.setName("gamertag").setDescription("Gamertag(s).").setRequired(false)),
+      .addStringOption((opt) =>
+        opt.setName("gamertag").setDescription("Gamertag(s).").setRequired(false)
+      ),
   ].map((c) => c.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
@@ -341,9 +430,7 @@ async function openXblSearch(gamertag) {
     people.find((p) => (p?.modernGamertag ?? "").toLowerCase() === wantedLower) ||
     people[0];
 
-  if (!best?.xuid) {
-    throw new Error("Search result missing XUID.");
-  }
+  if (!best?.xuid) throw new Error("Search result missing XUID.");
 
   return best;
 }
@@ -439,21 +526,10 @@ async function fetchOpenXblMergedProfile(gamertag) {
   };
 }
 
-async function fetchOpenXblBasicProfile(gamertag) {
-  const person = await openXblSearch(gamertag);
-
-  return {
-    gamertag: person.gamertag || person.modernGamertag || normalizeGamertag(gamertag),
-    xuid: person.xuid,
-    gamerscore: parseIntOrNull(person.gamerscore ?? person?.detail?.gamerscore),
-    tier: person?.detail?.accountTier || null,
-    gamerpic: person?.displayPicRaw || person?.displayPic || null,
-  };
-}
-
 function addFieldIf(embed, name, value, inline = true) {
   const v = (value ?? "").toString().trim();
   if (!v) return;
+
   embed.addFields({ name, value: v, inline });
 }
 
@@ -524,9 +600,11 @@ function addFlagged(profile) {
     });
   } else {
     p.gamertag = profile.gamertag;
+
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) {
       p.gamerscore = profile.gamerscore;
     }
+
     p.lastSeenMs = t;
   }
 
@@ -540,9 +618,11 @@ function addFlagged(profile) {
     });
   } else {
     a.gamertag = profile.gamertag;
+
     if (profile.gamerscore !== null && profile.gamerscore !== undefined) {
       a.lastKnownGS = profile.gamerscore;
     }
+
     a.lastSeenMs = t;
   }
 
@@ -669,6 +749,11 @@ async function sendDigestIfDue() {
   saveState();
 }
 
+const queue = [];
+const queuedKeys = new Set();
+let working = false;
+let globalCooldownUntilMs = 0;
+
 async function pollOnlineList() {
   if (!ONLINE_LIST_CHANNEL_ID) return;
 
@@ -694,11 +779,6 @@ async function pollOnlineList() {
     enqueueGamertag(gt, newest.guild);
   }
 }
-
-const queue = [];
-const queuedKeys = new Set();
-let working = false;
-let globalCooldownUntilMs = 0;
 
 function enqueueGamertag(gt, guild) {
   const clean = normalizeGamertag(gt);
@@ -736,38 +816,39 @@ async function processQueue() {
       }
 
       try {
-        const merged = await fetchOpenXblBasicProfile(item.gt);
-
-        state.checked.add(item.k);
-        saveState();
-
+        const merged = await fetchOpenXblMergedProfile(item.gt);
         const gs = merged.gamerscore;
 
         if (gs === null || gs === undefined) {
-          console.warn(`[SKIPPED] ${item.gt}: Gamerscore unavailable from search result. Marked as checked.`);
-        } else if (gs < GS_THRESHOLD) {
-          addFlagged({ gamertag: merged.gamertag, gamerscore: gs });
+          console.warn(`[SKIPPED] ${item.gt}: Gamerscore unavailable. Will try again later.`);
+        } else {
+          state.checked.add(item.k);
+          saveState();
 
-          if (IMMEDIATE_FLAG_LOGS && item.guild && MODLOG_CHANNEL_ID) {
-            const embed = new EmbedBuilder()
-              .setTitle("XCHECK FLAGGED")
-              .addFields(
-                { name: "Gamertag", value: merged.gamertag, inline: true },
-                { name: "Gamerscore", value: String(gs), inline: true },
-                { name: "Result", value: "FLAGGED", inline: false }
-              )
-              .setColor(0xff0000)
-              .setTimestamp();
+          if (gs < GS_THRESHOLD) {
+            addFlagged({ gamertag: merged.gamertag, gamerscore: gs });
 
-            if (merged.tier) {
-              embed.addFields({ name: "Tier", value: String(merged.tier), inline: true });
+            if (IMMEDIATE_FLAG_LOGS && item.guild && MODLOG_CHANNEL_ID) {
+              const embed = new EmbedBuilder()
+                .setTitle("XCHECK FLAGGED")
+                .addFields(
+                  { name: "Gamertag", value: merged.gamertag, inline: true },
+                  { name: "Gamerscore", value: String(gs), inline: true },
+                  { name: "Result", value: "FLAGGED", inline: false }
+                )
+                .setColor(0xff0000)
+                .setTimestamp();
+
+              if (merged.tier) {
+                embed.addFields({ name: "Tier", value: String(merged.tier), inline: true });
+              }
+
+              if (merged.gamerpic) {
+                embed.setThumbnail(merged.gamerpic);
+              }
+
+              await sendEmbedToChannel(item.guild, MODLOG_CHANNEL_ID, embed);
             }
-
-            if (merged.gamerpic) {
-              embed.setThumbnail(merged.gamerpic);
-            }
-
-            await sendEmbedToChannel(item.guild, MODLOG_CHANNEL_ID, embed);
           }
         }
       } catch (err) {
@@ -780,9 +861,7 @@ async function processQueue() {
         const msg = String(err?.message ?? err);
 
         if (msg.toLowerCase().includes("gamertag not found")) {
-          state.checked.add(item.k);
-          saveState();
-          console.warn(`[SKIPPED] ${item.gt}: Gamertag not found. Marked as checked.`);
+          console.warn(`[NOT FOUND] ${item.gt}: OpenXBL could not find this gamertag. Not marking as checked.`);
         } else {
           console.error(`[ERROR] ${item.gt}:`, msg);
         }
@@ -815,15 +894,225 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
   });
 }
 
+function getTraderWeekStartMs(referenceMs = nowMs()) {
+  const EST_OFFSET_MS = -5 * 60 * 60 * 1000;
+  const d = new Date(referenceMs + EST_OFFSET_MS);
+
+  const day = d.getUTCDay();
+  const daysSinceFriday = (day - 5 + 7) % 7;
+
+  const fridayEst = new Date(Date.UTC(
+    d.getUTCFullYear(),
+    d.getUTCMonth(),
+    d.getUTCDate() - daysSinceFriday,
+    0,
+    0,
+    0,
+    0
+  ));
+
+  return fridayEst.getTime() - EST_OFFSET_MS;
+}
+
+function ensureTraderStatsWeek() {
+  if (!state.traderStats || typeof state.traderStats !== "object") {
+    state.traderStats = defaultTraderStats();
+  }
+
+  if (!state.traderStats.totals || typeof state.traderStats.totals !== "object") {
+    state.traderStats.totals = {};
+  }
+
+  if (!state.traderStats.activeSessions || typeof state.traderStats.activeSessions !== "object") {
+    state.traderStats.activeSessions = {};
+  }
+
+  const currentWeekStart = getTraderWeekStartMs();
+
+  if (state.traderStats.weekStartMs !== currentWeekStart) {
+    state.traderStats.weekStartMs = currentWeekStart;
+    state.traderStats.totals = {};
+    state.traderStats.activeSessions = {};
+    saveState();
+  }
+}
+
+function formatDuration(ms) {
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes <= 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+function getActiveTraderCount() {
+  ensureTraderStatsWeek();
+  return Object.keys(state.traderStats.activeSessions || {}).length;
+}
+
+function getDisplayNameForMember(member, fallbackUser) {
+  return member?.displayName || fallbackUser?.globalName || fallbackUser?.username || "Unknown Trader";
+}
+
+function startTraderSession(member, user) {
+  ensureTraderStatsWeek();
+
+  const userId = user.id;
+  const displayName = getDisplayNameForMember(member, user);
+
+  if (state.traderStats.activeSessions[userId]) {
+    return {
+      started: false,
+      displayName,
+      alreadyActive: true,
+    };
+  }
+
+  state.traderStats.activeSessions[userId] = {
+    userId,
+    displayName,
+    startedMs: nowMs(),
+  };
+
+  if (!state.traderStats.totals[userId]) {
+    state.traderStats.totals[userId] = {
+      userId,
+      displayName,
+      totalMs: 0,
+    };
+  } else {
+    state.traderStats.totals[userId].displayName = displayName;
+  }
+
+  saveState();
+
+  return {
+    started: true,
+    displayName,
+    alreadyActive: false,
+  };
+}
+
+function stopTraderSession(member, user) {
+  ensureTraderStatsWeek();
+
+  const userId = user.id;
+  const displayName = getDisplayNameForMember(member, user);
+  const session = state.traderStats.activeSessions[userId];
+
+  if (!session) {
+    return {
+      stopped: false,
+      displayName,
+      addedMs: 0,
+    };
+  }
+
+  const addedMs = Math.max(0, nowMs() - Number(session.startedMs || nowMs()));
+
+  if (!state.traderStats.totals[userId]) {
+    state.traderStats.totals[userId] = {
+      userId,
+      displayName,
+      totalMs: 0,
+    };
+  }
+
+  state.traderStats.totals[userId].displayName = displayName;
+  state.traderStats.totals[userId].totalMs =
+    Number(state.traderStats.totals[userId].totalMs || 0) + addedMs;
+
+  delete state.traderStats.activeSessions[userId];
+
+  saveState();
+
+  return {
+    stopped: true,
+    displayName,
+    addedMs,
+  };
+}
+
+function buildTraderStatsText() {
+  ensureTraderStatsWeek();
+
+  const totals = { ...(state.traderStats.totals || {}) };
+
+  for (const [userId, session] of Object.entries(state.traderStats.activeSessions || {})) {
+    if (!totals[userId]) {
+      totals[userId] = {
+        userId,
+        displayName: session.displayName || "Unknown Trader",
+        totalMs: 0,
+      };
+    }
+
+    totals[userId].totalMs =
+      Number(totals[userId].totalMs || 0) + Math.max(0, nowMs() - Number(session.startedMs || nowMs()));
+  }
+
+  const rows = Object.values(totals)
+    .filter((x) => Number(x.totalMs || 0) > 0)
+    .sort((a, b) => Number(b.totalMs || 0) - Number(a.totalMs || 0));
+
+  if (!rows.length) {
+    return "**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday.";
+  }
+
+  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** — ${formatDuration(Number(x.totalMs || 0))}`);
+
+  const active = Object.values(state.traderStats.activeSessions || {});
+  const activeLine = active.length
+    ? `\n\nCurrently active: ${active.map((x) => `**${x.displayName}**`).join(", ")}`
+    : "";
+
+  return `**Trader Hours This Week**\n${lines.join("\n")}${activeLine}\n\nWeek resets Friday.`;
+}
+
+async function setTraderStatusChannelName(guild, desiredName) {
+  const channel = await guild.channels.fetch(TRADER_STATUS_CHANNEL_ID).catch(() => null);
+
+  if (!channel || typeof channel.setName !== "function") {
+    return {
+      ok: false,
+      channel: null,
+      error: "Trader status channel not found, or it cannot be renamed.",
+    };
+  }
+
+  const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+  const perms = botMember ? channel.permissionsFor(botMember) : null;
+
+  if (!perms?.has(PermissionsBitField.Flags.ManageChannels)) {
+    return {
+      ok: false,
+      channel,
+      error: "I need the **Manage Channels** permission to rename the trader status channel.",
+    };
+  }
+
+  if (channel.name !== desiredName) {
+    await channel.setName(desiredName, "Trader status command used");
+  }
+
+  return {
+    ok: true,
+    channel,
+    error: null,
+  };
+}
+
 async function handleTraderStatusCommand(message) {
   try {
     if (message.author.bot) return false;
     if (!message.guild) return false;
 
     const content = message.content.toLowerCase().trim();
-    const newName = TRADER_STATUS_COMMANDS[content];
+    const action = TRADER_STATUS_COMMANDS[content];
 
-    if (!newName) return false;
+    if (!action) return false;
 
     const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
 
@@ -836,29 +1125,99 @@ async function handleTraderStatusCommand(message) {
       return true;
     }
 
-    const channel = await message.guild.channels.fetch(TRADER_STATUS_CHANNEL_ID).catch(() => null);
+    const displayName = getDisplayNameForMember(member, message.author);
 
-    if (!channel || typeof channel.setName !== "function") {
-      await message.reply("Trader status channel not found, or it cannot be renamed.");
+    if (action === "stats") {
+      const statsText = buildTraderStatsText();
+      await message.reply(statsText);
       return true;
     }
 
-    const botMember = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
-    const perms = botMember ? channel.permissionsFor(botMember) : null;
+    if (action === "open") {
+      startTraderSession(member, message.author);
 
-    if (!perms?.has(PermissionsBitField.Flags.ManageChannels)) {
-      await message.reply("I need the **Manage Channels** permission to rename the trader status channel.");
+      const status = await setTraderStatusChannelName(message.guild, TRADER_STATUS_NAMES.online);
+
+      if (!status.ok) {
+        await message.reply(status.error);
+        return true;
+      }
+
+      const openedAtUnix = Math.floor(Date.now() / 1000);
+      await status.channel.send(`<@&${TRADER_PING_ROLE_ID}> <@${message.author.id}> opened trader at <t:${openedAtUnix}:t>`);
+
+      if (message.channel.id !== status.channel.id) {
+        await message.reply("Trader status set to online.");
+      }
+
       return true;
     }
 
-    if (channel.name === newName) {
-      await message.reply(`Trader status is already set to ${newName}`);
+    if (action === "break") {
+      const result = stopTraderSession(member, message.author);
+      const activeCount = getActiveTraderCount();
+
+      const desiredName = activeCount > 0
+        ? TRADER_STATUS_NAMES.online
+        : TRADER_STATUS_NAMES.break;
+
+      const status = await setTraderStatusChannelName(message.guild, desiredName);
+
+      if (!status.ok) {
+        await message.reply(status.error);
+        return true;
+      }
+
+      const timeText = result.stopped
+        ? ` Time logged: **${formatDuration(result.addedMs)}**.`
+        : "";
+
+      const stillOnlineText = activeCount > 0
+        ? ` Trader is still online with **${activeCount}** active trader${activeCount === 1 ? "" : "s"}.`
+        : " Trader is currently on break.";
+
+      await status.channel.send(`**${displayName}** is on trader break.${timeText}${stillOnlineText}`);
+
+      if (message.channel.id !== status.channel.id) {
+        await message.reply("Trader break logged.");
+      }
+
       return true;
     }
 
-    await channel.setName(newName, `Trader status command used by ${message.author.tag}`);
-    await message.reply(`Trader status updated to ${newName}`);
-    return true;
+    if (action === "close") {
+      const result = stopTraderSession(member, message.author);
+      const activeCount = getActiveTraderCount();
+
+      const desiredName = activeCount > 0
+        ? TRADER_STATUS_NAMES.online
+        : TRADER_STATUS_NAMES.offline;
+
+      const status = await setTraderStatusChannelName(message.guild, desiredName);
+
+      if (!status.ok) {
+        await message.reply(status.error);
+        return true;
+      }
+
+      const timeText = result.stopped
+        ? ` Time logged: **${formatDuration(result.addedMs)}**.`
+        : "";
+
+      const stillOnlineText = activeCount > 0
+        ? ` Trader is still online with **${activeCount}** active trader${activeCount === 1 ? "" : "s"}.`
+        : " Trader is now offline.";
+
+      await status.channel.send(`**${displayName}** closed trader.${timeText}${stillOnlineText}`);
+
+      if (message.channel.id !== status.channel.id) {
+        await message.reply("Trader close logged.");
+      }
+
+      return true;
+    }
+
+    return false;
   } catch (err) {
     console.error("[TRADER STATUS ERROR]", err?.message ?? err);
     await message.reply("Something went wrong while updating trader status.").catch(() => null);
@@ -1088,9 +1447,7 @@ client.on("interactionCreate", async (interaction) => {
       addFieldIf(embed, "Result", flaggedByGS ? "FLAGGED" : "OK", false);
       addFieldIf(embed, "Tier", merged.tier ? String(merged.tier) : "", true);
 
-      if (merged.gamerpic) {
-        embed.setThumbnail(merged.gamerpic);
-      }
+      if (merged.gamerpic) embed.setThumbnail(merged.gamerpic);
 
       await interaction.editReply({ embeds: [embed] });
       return;
@@ -1101,9 +1458,7 @@ client.on("interactionCreate", async (interaction) => {
       .setColor(flaggedByGS ? 0xff4d4d : 0x2b2d31)
       .setTimestamp();
 
-    if (merged.gamerpic) {
-      embed.setThumbnail(merged.gamerpic);
-    }
+    if (merged.gamerpic) embed.setThumbnail(merged.gamerpic);
 
     addFieldIf(embed, "Gamertag", merged.gamertag, true);
     addFieldIf(embed, "XUID", merged.xuid ? String(merged.xuid) : "", true);
@@ -1145,11 +1500,11 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     console.error("interaction error:", err?.message ?? err);
 
-    try {
-      const msg = err instanceof RateLimitError
-        ? "OpenXBL is rate limiting requests right now. Try again in a couple minutes."
-        : "Something went wrong while processing that request.";
+    const msg = err instanceof RateLimitError
+      ? "OpenXBL is rate limiting requests right now. Try again in a couple minutes."
+      : "Something went wrong while processing that request.";
 
+    try {
       if (interaction.deferred || interaction.replied) {
         await interaction.editReply(msg);
       } else {
@@ -1162,7 +1517,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   await autoDeployCommandsIfEnabled().catch((e) =>

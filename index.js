@@ -24,6 +24,8 @@ const XBL_API_KEY = (process.env.XBL_API_KEY ?? "").trim();
 
 const GS_THRESHOLD = Number.parseInt((process.env.GS_THRESHOLD ?? "2500").trim(), 10);
 const ONLINE_LIST_CHANNEL_ID = (process.env.ONLINE_LIST_CHANNEL_ID ?? "").trim();
+const ONLINE_COUNT_CHANNEL_ID = (process.env.ONLINE_COUNT_CHANNEL_ID ?? "1265079510982725632").trim();
+const ONLINE_COUNT_MAX_PLAYERS = Number.parseInt((process.env.ONLINE_COUNT_MAX_PLAYERS ?? "50").trim(), 10);
 const MODLOG_CHANNEL_ID = (process.env.MODLOG_CHANNEL_ID ?? "").trim();
 
 const DIGEST_CHANNEL_ID = (process.env.DIGEST_CHANNEL_ID ?? MODLOG_CHANNEL_ID).trim();
@@ -82,6 +84,7 @@ if (!Number.isFinite(GS_THRESHOLD)) die("GS_THRESHOLD must be a valid integer.")
 if (!Number.isFinite(DIGEST_INTERVAL_HOURS) || DIGEST_INTERVAL_HOURS < 1) die("DIGEST_INTERVAL_HOURS must be >= 1.");
 if (!Number.isFinite(SCRUB_DELAY_MS) || SCRUB_DELAY_MS < 0) die("SCRUB_DELAY_MS must be non-negative.");
 if (!Number.isFinite(POLL_SECONDS) || POLL_SECONDS < 10) die("POLL_SECONDS must be >= 10.");
+if (!Number.isFinite(ONLINE_COUNT_MAX_PLAYERS) || ONLINE_COUNT_MAX_PLAYERS < 1) die("ONLINE_COUNT_MAX_PLAYERS must be >= 1.");
 
 process.on("unhandledRejection", (err) => console.error("Unhandled rejection:", err));
 process.on("uncaughtException", (err) => console.error("Uncaught exception:", err));
@@ -579,6 +582,56 @@ function formatBool(v) {
   return "";
 }
 
+function extractOnlineCountFromMessage(msg, parsedGamertags = []) {
+  const embedText = [];
+
+  for (const e of msg.embeds ?? []) {
+    if (e?.title) embedText.push(String(e.title));
+    if (e?.description) embedText.push(String(e.description));
+
+    if (Array.isArray(e?.fields)) {
+      for (const f of e.fields) {
+        if (f?.name) embedText.push(String(f.name));
+        if (f?.value) embedText.push(String(f.value));
+      }
+    }
+  }
+
+  const text = embedText.join("\n");
+  const countMatch =
+    text.match(/(?:online|players?|survivors?|on now)[^0-9]{0,30}(\d{1,3})\s*\/\s*(\d{1,3})/i) ||
+    text.match(/(\d{1,3})\s*\/\s*(\d{1,3})[^\n]*(?:online|players?|survivors?|on now)/i) ||
+    text.match(/(?:online|players?|survivors?|on now)[^0-9]{0,30}(\d{1,3})/i);
+
+  if (countMatch) {
+    const count = Number.parseInt(countMatch[1], 10);
+    if (Number.isFinite(count)) return count;
+  }
+
+  return parsedGamertags.length;
+}
+
+async function updateOnlineCountChannel(guild, count) {
+  if (!ONLINE_COUNT_CHANNEL_ID || !guild) return;
+
+  const channel = await guild.channels.fetch(ONLINE_COUNT_CHANNEL_ID).catch(() => null);
+  if (!channel || typeof channel.setName !== "function") return;
+
+  const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+  const perms = botMember ? channel.permissionsFor(botMember) : null;
+
+  if (!perms?.has(PermissionsBitField.Flags.ManageChannels)) {
+    console.warn("[ONLINE COUNT] Missing Manage Channels permission for online count channel.");
+    return;
+  }
+
+  const desiredName = `\uD83D\uDFE2 On Now ${count}/${ONLINE_COUNT_MAX_PLAYERS}`;
+
+  if (channel.name !== desiredName) {
+    await channel.setName(desiredName, "Online player count updated");
+  }
+}
+
 function extractGamertagsFromEmbeds(msg) {
   const embeds = msg.embeds ?? [];
   if (!embeds.length) return [];
@@ -797,14 +850,6 @@ let globalCooldownUntilMs = 0;
 async function pollOnlineList() {
   if (!ONLINE_LIST_CHANNEL_ID) return;
 
-  const now = nowMs();
-
-  if (globalCooldownUntilMs > now) {
-    const waitSec = Math.ceil((globalCooldownUntilMs - now) / 1000);
-    console.warn(`[OPENXBL] Global cooldown active. Skipping poll for ${waitSec}s.`);
-    return;
-  }
-
   const channel = await client.channels.fetch(ONLINE_LIST_CHANNEL_ID).catch(() => null);
   if (!channel || !("messages" in channel)) return;
 
@@ -814,6 +859,15 @@ async function pollOnlineList() {
   if (!newest) return;
 
   const gts = extractGamertagsFromEmbeds(newest);
+  await updateOnlineCountChannel(newest.guild, extractOnlineCountFromMessage(newest, gts));
+
+  const now = nowMs();
+
+  if (globalCooldownUntilMs > now) {
+    const waitSec = Math.ceil((globalCooldownUntilMs - now) / 1000);
+    console.warn(`[OPENXBL] Global cooldown active. Skipping gamertag checks for ${waitSec}s.`);
+    return;
+  }
 
   for (const gt of gts) {
     enqueueGamertag(gt, newest.guild);

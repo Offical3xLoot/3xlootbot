@@ -56,9 +56,9 @@ const TRADER_STATUS_ROLE_IDS = [
 ];
 
 const TRADER_STATUS_NAMES = {
-  online: "ðŸŸ¢â”ƒtrader-status",
-  break: "ðŸŸ¡â”ƒtrader-status",
-  offline: "ðŸ”´â”ƒtrader-status",
+  online: "\uD83D\uDFE2\u2503trader-status",
+  break: "\uD83D\uDFE0\u2503trader-status",
+  offline: "\uD83D\uDD34\u2503trader-status",
 };
 
 const TRADER_STATUS_COMMANDS = {
@@ -661,7 +661,7 @@ function extractGamertagsFromEmbeds(msg) {
     if (lower.includes("online list") && lower.includes("players")) continue;
     if (lower === "3xloot") continue;
 
-    line = line.replace(/^[â€¢\-]+\s*/, "").trim();
+    line = line.replace(/^[Ã¢â‚¬Â¢\-]+\s*/, "").trim();
 
     const gt = normalizeGamertag(line);
     if (gt.length < 2 || gt.length > 20) continue;
@@ -976,7 +976,7 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
   return chunks.map((chunk, i) => {
     const e = new EmbedBuilder()
       .setTitle(title)
-      .setDescription(chunk || "â€”")
+      .setDescription(chunk || "Ã¢â‚¬â€")
       .setColor(color)
       .setTimestamp();
 
@@ -1155,7 +1155,7 @@ function buildTraderStatsText() {
     return "**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday.";
   }
 
-  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** â€” ${formatDuration(Number(x.totalMs || 0))}`);
+  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** Ã¢â‚¬â€ ${formatDuration(Number(x.totalMs || 0))}`);
 
   const active = Object.values(state.traderStats.activeSessions || {});
   const activeLine = active.length
@@ -1333,7 +1333,7 @@ client.on("interactionCreate", async (interaction) => {
   try {
     if ((cmd === "xflagged" || cmd === "xtrust") && !isStaff(interaction)) {
       await interaction.reply({
-        content: "You donâ€™t have permission to use that command.",
+        content: "You donÃ¢â‚¬â„¢t have permission to use that command.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -1351,7 +1351,7 @@ client.on("interactionCreate", async (interaction) => {
           .sort((a, b) => a.localeCompare(b));
 
         const embeds = buildListEmbeds(
-          `Trusted Gamertags â€¢ ${lines.length}`,
+          `Trusted Gamertags Ã¢â‚¬Â¢ ${lines.length}`,
           lines.length ? lines : ["No trusted gamertags saved."],
           0x00ff00
         );
@@ -1510,7 +1510,7 @@ client.on("interactionCreate", async (interaction) => {
           );
 
       const embeds = buildListEmbeds(
-        `Flagged (${scope === "pending" ? "Pending" : "All-Time"}) â€¢ ${lines.length}`,
+        `Flagged (${scope === "pending" ? "Pending" : "All-Time"}) Ã¢â‚¬Â¢ ${lines.length}`,
         lines.length ? lines : ["No entries."],
         0xff0000
       );

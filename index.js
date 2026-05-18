@@ -420,19 +420,34 @@ function settingValue(settings, id) {
     : null;
 }
 
+function unwrapOpenXblContent(data) {
+  if (data?.content && typeof data.content === "object") return data.content;
+
+  if (typeof data?.content === "string") {
+    try {
+      return JSON.parse(data.content);
+    } catch {
+      return data;
+    }
+  }
+
+  return data;
+}
+
 async function openXblSearch(gamertag) {
   const wanted = normalizeGamertag(gamertag);
   const wantedLower = wanted.toLowerCase();
   const data = await openXblFetchWithRetry(`https://xbl.io/api/v2/search/${encodeURIComponent(wanted)}`);
+  const payload = unwrapOpenXblContent(data);
 
-  const people = Array.isArray(data?.people)
-    ? data.people
-    : Array.isArray(data?.profileUsers)
-      ? data.profileUsers
+  const people = Array.isArray(payload?.people)
+    ? payload.people
+    : Array.isArray(payload?.profileUsers)
+      ? payload.profileUsers
       : [];
 
   if (!people.length) {
-    console.warn(`[OPENXBL SEARCH EMPTY] ${wanted}: response keys=${Object.keys(data || {}).join(",") || "none"}`);
+    console.warn(`[OPENXBL SEARCH EMPTY] ${wanted}: response keys=${Object.keys(data || {}).join(",") || "none"}; content keys=${Object.keys(payload || {}).join(",") || "none"}`);
     throw new Error("Gamertag not found.");
   }
 
@@ -520,9 +535,10 @@ function deepFindNumbers(obj, keyNamesLower) {
 async function fetchOpenXblMergedProfile(gamertag) {
   const person = await openXblSearch(gamertag);
   const accData = await openXblAccount(person.xuid);
-  const settingsMap = settingsToMap(accData?.profileUsers?.[0]?.settings || person?.settings);
+  const accPayload = unwrapOpenXblContent(accData);
+  const settingsMap = settingsToMap(accPayload?.profileUsers?.[0]?.settings || person?.settings);
 
-  const socialNums = deepFindNumbers({ person, accData }, new Set([
+  const socialNums = deepFindNumbers({ person, accData: accPayload }, new Set([
     "followerscount",
     "followercount",
     "followingcount",
@@ -1564,6 +1580,7 @@ client.once("clientReady", async () => {
 });
 
 client.login(DISCORD_TOKEN);
+
 
 
 

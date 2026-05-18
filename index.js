@@ -54,9 +54,9 @@ const TRADER_STATUS_ROLE_IDS = [
 ];
 
 const TRADER_STATUS_NAMES = {
-  online: "🟢┃trader-status",
-  break: "🟡┃trader-status",
-  offline: "🔴┃trader-status",
+  online: "ðŸŸ¢â”ƒtrader-status",
+  break: "ðŸŸ¡â”ƒtrader-status",
+  offline: "ðŸ”´â”ƒtrader-status",
 };
 
 const TRADER_STATUS_COMMANDS = {
@@ -414,25 +414,48 @@ async function openXblFetchWithRetry(url) {
   }
 }
 
+function settingValue(settings, id) {
+  return Array.isArray(settings)
+    ? settings.find((s) => s?.id === id)?.value ?? null
+    : null;
+}
+
 async function openXblSearch(gamertag) {
   const wanted = normalizeGamertag(gamertag);
-  const data = await openXblFetchWithRetry(`https://xbl.io/api/v2/search/${encodeURIComponent(wanted)}`);
-  const people = data?.people;
+  const wantedLower = wanted.toLowerCase();
+  const data = await openXblFetchWithRetry(`https://xbl.io/api/v2/friends/search?gt=${encodeURIComponent(wanted)}`);
 
-  if (!Array.isArray(people) || !people.length) {
+  const people = Array.isArray(data?.profileUsers)
+    ? data.profileUsers
+    : Array.isArray(data?.people)
+      ? data.people
+      : [];
+
+  if (!people.length) {
     throw new Error("Gamertag not found.");
   }
 
-  const wantedLower = wanted.toLowerCase();
-
   const best =
-    people.find((p) => (p?.gamertag ?? "").toLowerCase() === wantedLower) ||
-    people.find((p) => (p?.modernGamertag ?? "").toLowerCase() === wantedLower) ||
+    people.find((p) => String(settingValue(p?.settings, "Gamertag") ?? "").toLowerCase() === wantedLower) ||
+    people.find((p) => String(settingValue(p?.settings, "ModernGamertag") ?? "").toLowerCase() === wantedLower) ||
+    people.find((p) => String(settingValue(p?.settings, "UniqueModernGamertag") ?? "").toLowerCase() === wantedLower) ||
+    people.find((p) => String(p?.gamertag ?? "").toLowerCase() === wantedLower) ||
+    people.find((p) => String(p?.modernGamertag ?? "").toLowerCase() === wantedLower) ||
     people[0];
 
-  if (!best?.xuid) throw new Error("Search result missing XUID.");
+  const xuid = best?.xuid || best?.id;
+  if (!xuid) throw new Error("Search result missing XUID.");
 
-  return best;
+  return {
+    ...best,
+    xuid,
+    gamertag:
+      best?.gamertag ||
+      settingValue(best?.settings, "Gamertag") ||
+      settingValue(best?.settings, "ModernGamertag") ||
+      settingValue(best?.settings, "UniqueModernGamertag") ||
+      wanted,
+  };
 }
 
 async function openXblAccount(xuid) {
@@ -496,7 +519,7 @@ function deepFindNumbers(obj, keyNamesLower) {
 async function fetchOpenXblMergedProfile(gamertag) {
   const person = await openXblSearch(gamertag);
   const accData = await openXblAccount(person.xuid);
-  const settingsMap = settingsToMap(accData?.profileUsers?.[0]?.settings);
+  const settingsMap = settingsToMap(accData?.profileUsers?.[0]?.settings || person?.settings);
 
   const socialNums = deepFindNumbers({ person, accData }, new Set([
     "followerscount",
@@ -568,7 +591,7 @@ function extractGamertagsFromEmbeds(msg) {
     if (lower.includes("online list") && lower.includes("players")) continue;
     if (lower === "3xloot") continue;
 
-    line = line.replace(/^[•\-]+\s*/, "").trim();
+    line = line.replace(/^[â€¢\-]+\s*/, "").trim();
 
     const gt = normalizeGamertag(line);
     if (gt.length < 2 || gt.length > 20) continue;
@@ -882,7 +905,7 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
   return chunks.map((chunk, i) => {
     const e = new EmbedBuilder()
       .setTitle(title)
-      .setDescription(chunk || "—")
+      .setDescription(chunk || "â€”")
       .setColor(color)
       .setTimestamp();
 
@@ -1061,7 +1084,7 @@ function buildTraderStatsText() {
     return "**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday.";
   }
 
-  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** — ${formatDuration(Number(x.totalMs || 0))}`);
+  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** â€” ${formatDuration(Number(x.totalMs || 0))}`);
 
   const active = Object.values(state.traderStats.activeSessions || {});
   const activeLine = active.length
@@ -1134,6 +1157,7 @@ async function handleTraderStatusCommand(message) {
     }
 
     if (action === "open") {
+      const activeCountBeforeOpen = getActiveTraderCount();
       startTraderSession(member, message.author);
 
       const status = await setTraderStatusChannelName(message.guild, TRADER_STATUS_NAMES.online);
@@ -1144,7 +1168,8 @@ async function handleTraderStatusCommand(message) {
       }
 
       const openedAtUnix = Math.floor(Date.now() / 1000);
-      await status.channel.send(`<@&${TRADER_PING_ROLE_ID}> <@${message.author.id}> opened trader at <t:${openedAtUnix}:t>`);
+      const rolePing = activeCountBeforeOpen === 0 ? `<@&${TRADER_PING_ROLE_ID}> ` : "";
+      await status.channel.send(`${rolePing}<@${message.author.id}> opened trader at <t:${openedAtUnix}:t>`);
 
       if (message.channel.id !== status.channel.id) {
         await message.reply("Trader status set to online.");
@@ -1237,7 +1262,7 @@ client.on("interactionCreate", async (interaction) => {
   try {
     if ((cmd === "xflagged" || cmd === "xtrust") && !isStaff(interaction)) {
       await interaction.reply({
-        content: "You don’t have permission to use that command.",
+        content: "You donâ€™t have permission to use that command.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -1255,7 +1280,7 @@ client.on("interactionCreate", async (interaction) => {
           .sort((a, b) => a.localeCompare(b));
 
         const embeds = buildListEmbeds(
-          `Trusted Gamertags • ${lines.length}`,
+          `Trusted Gamertags â€¢ ${lines.length}`,
           lines.length ? lines : ["No trusted gamertags saved."],
           0x00ff00
         );
@@ -1414,7 +1439,7 @@ client.on("interactionCreate", async (interaction) => {
           );
 
       const embeds = buildListEmbeds(
-        `Flagged (${scope === "pending" ? "Pending" : "All-Time"}) • ${lines.length}`,
+        `Flagged (${scope === "pending" ? "Pending" : "All-Time"}) â€¢ ${lines.length}`,
         lines.length ? lines : ["No entries."],
         0xff0000
       );
@@ -1538,3 +1563,5 @@ client.once("clientReady", async () => {
 });
 
 client.login(DISCORD_TOKEN);
+
+

@@ -423,15 +423,16 @@ function settingValue(settings, id) {
 async function openXblSearch(gamertag) {
   const wanted = normalizeGamertag(gamertag);
   const wantedLower = wanted.toLowerCase();
-  const data = await openXblFetchWithRetry(`https://xbl.io/api/v2/friends/search?gt=${encodeURIComponent(wanted)}`);
+  const data = await openXblFetchWithRetry(`https://xbl.io/api/v2/search/${encodeURIComponent(wanted)}`);
 
-  const people = Array.isArray(data?.profileUsers)
-    ? data.profileUsers
-    : Array.isArray(data?.people)
-      ? data.people
+  const people = Array.isArray(data?.people)
+    ? data.people
+    : Array.isArray(data?.profileUsers)
+      ? data.profileUsers
       : [];
 
   if (!people.length) {
+    console.warn(`[OPENXBL SEARCH EMPTY] ${wanted}: response keys=${Object.keys(data || {}).join(",") || "none"}`);
     throw new Error("Gamertag not found.");
   }
 
@@ -532,7 +533,7 @@ async function fetchOpenXblMergedProfile(gamertag) {
   return {
     gamertag: readSetting(settingsMap, "Gamertag") || person.gamertag || normalizeGamertag(gamertag),
     xuid: person.xuid,
-    gamerscore: parseIntOrNull(readSetting(settingsMap, "Gamerscore")) ?? parseIntOrNull(person.gamerscore) ?? null,
+    gamerscore: parseIntOrNull(readSetting(settingsMap, "Gamerscore")) ?? parseIntOrNull(person.gamerscore) ?? parseIntOrNull(person.gamerScore) ?? null,
     tier: readSetting(settingsMap, "AccountTier") || person?.detail?.accountTier || null,
     gamerpic: readSetting(settingsMap, "GameDisplayPicRaw", "GameDisplayPic") || person?.displayPicRaw || person?.displayPic || null,
     bio: readSetting(settingsMap, "Bio") || person?.detail?.bio || null,
@@ -1563,5 +1564,6 @@ client.once("clientReady", async () => {
 });
 
 client.login(DISCORD_TOKEN);
+
 
 

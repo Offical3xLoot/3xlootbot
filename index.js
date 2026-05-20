@@ -661,7 +661,7 @@ function extractGamertagsFromEmbeds(msg) {
     if (lower.includes("online list") && lower.includes("players")) continue;
     if (lower === "3xloot") continue;
 
-    line = line.replace(/^[Ã¢â‚¬Â¢\-]+\s*/, "").trim();
+    line = line.replace(/^[\u2022\-]+\s*/, "").trim();
 
     const gt = normalizeGamertag(line);
     if (gt.length < 2 || gt.length > 20) continue;
@@ -859,7 +859,13 @@ async function pollOnlineList() {
   if (!newest) return;
 
   const gts = extractGamertagsFromEmbeds(newest);
-  await updateOnlineCountChannel(newest.guild, extractOnlineCountFromMessage(newest, gts));
+  console.log(`[POLL] Found ${gts.length} gamertag(s) in online list.`);
+
+  try {
+    await updateOnlineCountChannel(newest.guild, extractOnlineCountFromMessage(newest, gts));
+  } catch (err) {
+    console.warn("[ONLINE COUNT] Failed to update online count channel:", err?.message ?? err);
+  }
 
   const now = nowMs();
 
@@ -882,6 +888,7 @@ function enqueueGamertag(gt, guild) {
 
   queue.push({ gt: clean, k, guild });
   queuedKeys.add(k);
+  console.log(`[QUEUE] Queued ${clean} for OpenXBL check.`);
 
   void processQueue();
 }
@@ -910,6 +917,7 @@ async function processQueue() {
       }
 
       try {
+        console.log(`[CHECK] ${item.gt}: checking OpenXBL...`);
         const merged = await fetchOpenXblMergedProfile(item.gt);
         const gs = merged.gamerscore;
 
@@ -918,6 +926,7 @@ async function processQueue() {
         } else {
           state.checked.add(item.k);
           saveState();
+          console.log(`[CHECK] ${item.gt}: gamerscore ${gs}.`);
 
           if (gs < GS_THRESHOLD) {
             addFlagged({ gamertag: merged.gamertag, gamerscore: gs });
@@ -976,7 +985,7 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
   return chunks.map((chunk, i) => {
     const e = new EmbedBuilder()
       .setTitle(title)
-      .setDescription(chunk || "Ã¢â‚¬â€")
+      .setDescription(chunk || "-")
       .setColor(color)
       .setTimestamp();
 
@@ -1155,7 +1164,7 @@ function buildTraderStatsText() {
     return "**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday.";
   }
 
-  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** Ã¢â‚¬â€ ${formatDuration(Number(x.totalMs || 0))}`);
+  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** - ${formatDuration(Number(x.totalMs || 0))}`);
 
   const active = Object.values(state.traderStats.activeSessions || {});
   const activeLine = active.length
@@ -1333,7 +1342,7 @@ client.on("interactionCreate", async (interaction) => {
   try {
     if ((cmd === "xflagged" || cmd === "xtrust") && !isStaff(interaction)) {
       await interaction.reply({
-        content: "You donÃ¢â‚¬â„¢t have permission to use that command.",
+        content: "You don't have permission to use that command.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -1351,7 +1360,7 @@ client.on("interactionCreate", async (interaction) => {
           .sort((a, b) => a.localeCompare(b));
 
         const embeds = buildListEmbeds(
-          `Trusted Gamertags Ã¢â‚¬Â¢ ${lines.length}`,
+          `Trusted Gamertags - ${lines.length}`,
           lines.length ? lines : ["No trusted gamertags saved."],
           0x00ff00
         );
@@ -1510,7 +1519,7 @@ client.on("interactionCreate", async (interaction) => {
           );
 
       const embeds = buildListEmbeds(
-        `Flagged (${scope === "pending" ? "Pending" : "All-Time"}) Ã¢â‚¬Â¢ ${lines.length}`,
+        `Flagged (${scope === "pending" ? "Pending" : "All-Time"}) - ${lines.length}`,
         lines.length ? lines : ["No entries."],
         0xff0000
       );

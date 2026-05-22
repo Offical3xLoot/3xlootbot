@@ -47,6 +47,8 @@ const XBL_GLOBAL_COOLDOWN_MS = Number.parseInt((process.env.XBL_GLOBAL_COOLDOWN_
 
 // Trader status channel rename commands
 const TRADER_STATUS_CHANNEL_ID = (process.env.TRADER_STATUS_CHANNEL_ID ?? "1278171924932857959").trim();
+const TRADER_DIGEST_CHANNEL_ID = (process.env.TRADER_DIGEST_CHANNEL_ID ?? "1421520159452954695").trim();
+const TRADER_DIGEST_PING_ROLE_ID = (process.env.TRADER_DIGEST_PING_ROLE_ID ?? "1304113872030011434").trim();
 const TRADER_PING_ROLE_ID = (process.env.TRADER_PING_ROLE_ID ?? "1266136461682409565").trim();
 
 const TRADER_STATUS_ROLE_IDS = [
@@ -133,6 +135,8 @@ function defaultTraderStats() {
     weekStartMs: 0,
     totals: {},
     activeSessions: {},
+    lastDigestWeekStartMs: 0,
+    lastWeekSummary: null,
   };
 }
 
@@ -199,6 +203,8 @@ function loadState() {
     if (!traderStats.totals || typeof traderStats.totals !== "object") traderStats.totals = {};
     if (!traderStats.activeSessions || typeof traderStats.activeSessions !== "object") traderStats.activeSessions = {};
     if (!Number.isFinite(Number(traderStats.weekStartMs))) traderStats.weekStartMs = 0;
+    if (!Number.isFinite(Number(traderStats.lastDigestWeekStartMs))) traderStats.lastDigestWeekStartMs = 0;
+    if (!traderStats.lastWeekSummary || typeof traderStats.lastWeekSummary !== "object") traderStats.lastWeekSummary = null;
 
     return {
       checked,
@@ -1008,16 +1014,17 @@ function getTraderWeekStartMs(referenceMs = nowMs()) {
     d.getUTCFullYear(),
     d.getUTCMonth(),
     d.getUTCDate() - daysSinceFriday,
-    0,
+    6,
     0,
     0,
     0
   ));
 
-  return fridayEst.getTime() - EST_OFFSET_MS;
+  const candidate = fridayEst.getTime() - EST_OFFSET_MS;
+  return candidate > referenceMs ? candidate - (7 * 24 * 60 * 60 * 1000) : candidate;
 }
 
-function ensureTraderStatsWeek() {
+function normalizeTraderStatsState() {
   if (!state.traderStats || typeof state.traderStats !== "object") {
     state.traderStats = defaultTraderStats();
   }
@@ -1030,12 +1037,97 @@ function ensureTraderStatsWeek() {
     state.traderStats.activeSessions = {};
   }
 
+  if (!Number.isFinite(Number(state.traderStats.weekStartMs))) {
+    state.traderStats.weekStartMs = 0;
+  }
+
+  if (!Number.isFinite(Number(state.traderStats.lastDigestWeekStartMs))) {
+    state.traderStats.lastDigestWeekStartMs = 0;
+  }
+
+  if (!state.traderStats.lastWeekSummary || typeof state.traderStats.lastWeekSummary !== "object") {
+    state.traderStats.lastWeekSummary = null;
+  }
+}
+
+function getTraderStatsRows(referenceMs = nowMs()) {
+  const totals = { ...(state.traderStats.totals || {}) };
+
+  for (const [userId, session] of Object.entries(state.traderStats.activeSessions || {})) {
+    if (!totals[userId]) {
+      totals[userId] = {
+        userId,
+        displayName: session.displayName || "Unknown Trader",
+        totalMs: 0,
+      };
+    }
+
+    totals[userId].totalMs =
+      Number(totals[userId].totalMs || 0) + Math.max(0, referenceMs - Number(session.startedMs || referenceMs));
+  }
+
+  return Object.values(totals)
+    .filter((x) => Number(x.totalMs || 0) > 0)
+    .sort((a, b) => Number(b.totalMs || 0) - Number(a.totalMs || 0));
+}
+
+function formatTraderStatsLines(rows) {
+  return rows.map((x) => `**${x.displayName || "Unknown Trader"}** - ${formatDuration(Number(x.totalMs || 0))}`);
+}
+
+function buildTraderWeeklyDigestText(rows, weekStartMs, weekEndMs) {
+  const startUnix = Math.floor(Number(weekStartMs || 0) / 1000);
+  const endUnix = Math.floor(Number(weekEndMs || 0) / 1000);
+  const rangeText = weekStartMs
+    ? `\n<t:${startUnix}:f> to <t:${endUnix}:f>`
+    : "";
+
+  if (!rows.length) {
+    return `**Weekly Trader Hours Digest**${rangeText}\nNo trader time logged.`;
+  }
+
+  const totalMs = rows.reduce((sum, row) => sum + Number(row.totalMs || 0), 0);
+
+  return `**Weekly Trader Hours Digest**${rangeText}\n${formatTraderStatsLines(rows).join("\n")}\n\nTotal trader time: **${formatDuration(totalMs)}**`;
+}
+
+function rollTraderStatsWeek(currentWeekStart) {
+  const previousWeekStart = Number(state.traderStats.weekStartMs || 0);
+  const rows = getTraderStatsRows(currentWeekStart);
+
+  state.traderStats.lastWeekSummary = {
+    weekStartMs: previousWeekStart,
+    weekEndMs: currentWeekStart,
+    createdMs: nowMs(),
+    text: buildTraderWeeklyDigestText(rows, previousWeekStart, currentWeekStart),
+  };
+
+  const carriedActiveSessions = {};
+  for (const [userId, session] of Object.entries(state.traderStats.activeSessions || {})) {
+    carriedActiveSessions[userId] = {
+      ...session,
+      startedMs: currentWeekStart,
+    };
+  }
+
+  state.traderStats.weekStartMs = currentWeekStart;
+  state.traderStats.totals = {};
+  state.traderStats.activeSessions = carriedActiveSessions;
+}
+
+function ensureTraderStatsWeek() {
+  normalizeTraderStatsState();
+
   const currentWeekStart = getTraderWeekStartMs();
 
-  if (state.traderStats.weekStartMs !== currentWeekStart) {
+  if (!state.traderStats.weekStartMs) {
     state.traderStats.weekStartMs = currentWeekStart;
-    state.traderStats.totals = {};
-    state.traderStats.activeSessions = {};
+    saveState();
+    return;
+  }
+
+  if (state.traderStats.weekStartMs !== currentWeekStart) {
+    rollTraderStatsWeek(currentWeekStart);
     saveState();
   }
 }
@@ -1141,37 +1233,51 @@ function stopTraderSession(member, user) {
 function buildTraderStatsText() {
   ensureTraderStatsWeek();
 
-  const totals = { ...(state.traderStats.totals || {}) };
-
-  for (const [userId, session] of Object.entries(state.traderStats.activeSessions || {})) {
-    if (!totals[userId]) {
-      totals[userId] = {
-        userId,
-        displayName: session.displayName || "Unknown Trader",
-        totalMs: 0,
-      };
-    }
-
-    totals[userId].totalMs =
-      Number(totals[userId].totalMs || 0) + Math.max(0, nowMs() - Number(session.startedMs || nowMs()));
-  }
-
-  const rows = Object.values(totals)
-    .filter((x) => Number(x.totalMs || 0) > 0)
-    .sort((a, b) => Number(b.totalMs || 0) - Number(a.totalMs || 0));
+  const rows = getTraderStatsRows();
 
   if (!rows.length) {
-    return "**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday.";
-  }
+    const lastWeekText = state.traderStats.lastWeekSummary?.text
+      ? `\n\nLast saved weekly digest:\n${state.traderStats.lastWeekSummary.text}`
+      : "";
 
-  const lines = rows.map((x) => `**${x.displayName || "Unknown Trader"}** - ${formatDuration(Number(x.totalMs || 0))}`);
+    return `**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday at 6:00 AM EST.${lastWeekText}`;
+  }
 
   const active = Object.values(state.traderStats.activeSessions || {});
   const activeLine = active.length
     ? `\n\nCurrently active: ${active.map((x) => `**${x.displayName}**`).join(", ")}`
     : "";
 
-  return `**Trader Hours This Week**\n${lines.join("\n")}${activeLine}\n\nWeek resets Friday.`;
+  return `**Trader Hours This Week**\n${formatTraderStatsLines(rows).join("\n")}${activeLine}\n\nWeek resets Friday at 6:00 AM EST.`;
+}
+
+async function sendWeeklyTraderDigestIfDue() {
+  ensureTraderStatsWeek();
+
+  const summary = state.traderStats.lastWeekSummary;
+  if (!summary?.text || !summary.weekStartMs) return;
+  if (state.traderStats.lastDigestWeekStartMs === summary.weekStartMs) return;
+  if (!TRADER_DIGEST_CHANNEL_ID) return;
+
+  const channel = await client.channels.fetch(TRADER_DIGEST_CHANNEL_ID).catch(() => null);
+  if (!channel || !channel.guild || typeof channel.send !== "function") return;
+
+  const me = channel.guild.members.me;
+  if (me) {
+    const perms = channel.permissionsFor(me);
+    if (!perms?.has(PermissionsBitField.Flags.SendMessages)) return;
+  }
+
+  const ping = TRADER_DIGEST_PING_ROLE_ID ? `<@&${TRADER_DIGEST_PING_ROLE_ID}>\n` : "";
+  await channel.send({
+    content: `${ping}${summary.text}`,
+    allowedMentions: TRADER_DIGEST_PING_ROLE_ID
+      ? { roles: [TRADER_DIGEST_PING_ROLE_ID] }
+      : { parse: [] },
+  });
+
+  state.traderStats.lastDigestWeekStartMs = summary.weekStartMs;
+  saveState();
 }
 
 async function setTraderStatusChannelName(guild, desiredName) {
@@ -1629,6 +1735,8 @@ client.once("clientReady", async () => {
     console.error("[COMMANDS] deploy error:", e?.message ?? e)
   );
 
+  await sendWeeklyTraderDigestIfDue().catch((e) => console.error("[TRADER DIGEST] error:", e));
+
   await pollOnlineList().catch((e) => console.error("[POLL] error:", e));
 
   setInterval(() => {
@@ -1639,7 +1747,12 @@ client.once("clientReady", async () => {
     sendDigestIfDue().catch((e) => console.error("[DIGEST] error:", e));
   }, 60 * 1000);
 
+  setInterval(() => {
+    sendWeeklyTraderDigestIfDue().catch((e) => console.error("[TRADER DIGEST] error:", e));
+  }, 60 * 1000);
+
   await sendDigestIfDue().catch((e) => console.error("[DIGEST] error:", e));
+  await sendWeeklyTraderDigestIfDue().catch((e) => console.error("[TRADER DIGEST] error:", e));
 });
 
 client.login(DISCORD_TOKEN);

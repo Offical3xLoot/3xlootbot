@@ -1003,25 +1003,91 @@ function buildListEmbeds(title, lines, color = 0x2b2d31) {
   });
 }
 
+const TRADER_TIME_ZONE = "America/New_York";
+
+function getTimeZoneParts(timestampMs, timeZone = TRADER_TIME_ZONE) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(new Date(timestampMs))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)])
+  );
+
+  return {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+    hour: parts.hour,
+    minute: parts.minute,
+    second: parts.second,
+  };
+}
+
+function zonedDateTimeToUtcMs(year, month, day, hour, minute, second, timeZone) {
+  const targetAsUtc = Date.UTC(year, month - 1, day, hour, minute, second);
+  let candidate = targetAsUtc;
+
+  // Resolve the zone offset at this date. Repeating also handles DST changes.
+  for (let i = 0; i < 3; i++) {
+    const actual = getTimeZoneParts(candidate, timeZone);
+    const actualAsUtc = Date.UTC(
+      actual.year,
+      actual.month - 1,
+      actual.day,
+      actual.hour,
+      actual.minute,
+      actual.second
+    );
+
+    candidate += targetAsUtc - actualAsUtc;
+  }
+
+  return candidate;
+}
+
 function getTraderWeekStartMs(referenceMs = nowMs()) {
-  const EST_OFFSET_MS = -5 * 60 * 60 * 1000;
-  const d = new Date(referenceMs + EST_OFFSET_MS);
+  const easternNow = getTimeZoneParts(referenceMs, TRADER_TIME_ZONE);
 
-  const day = d.getUTCDay();
-  const daysSinceFriday = (day - 5 + 7) % 7;
+  // This Date represents Eastern calendar fields; UTC methods avoid host-zone effects.
+  const localDate = new Date(Date.UTC(
+    easternNow.year,
+    easternNow.month - 1,
+    easternNow.day
+  ));
 
-  const fridayEst = new Date(Date.UTC(
-    d.getUTCFullYear(),
-    d.getUTCMonth(),
-    d.getUTCDate() - daysSinceFriday,
+  const daysSinceFriday = (localDate.getUTCDay() - 5 + 7) % 7;
+  localDate.setUTCDate(localDate.getUTCDate() - daysSinceFriday);
+
+  const makeCandidate = () => zonedDateTimeToUtcMs(
+    localDate.getUTCFullYear(),
+    localDate.getUTCMonth() + 1,
+    localDate.getUTCDate(),
     6,
     0,
     0,
-    0
-  ));
+    TRADER_TIME_ZONE
+  );
 
-  const candidate = fridayEst.getTime() - EST_OFFSET_MS;
-  return candidate > referenceMs ? candidate - (7 * 24 * 60 * 60 * 1000) : candidate;
+  let candidate = makeCandidate();
+
+  // Before Friday at 6:00 AM Eastern, use the preceding Friday.
+  if (candidate > referenceMs) {
+    localDate.setUTCDate(localDate.getUTCDate() - 7);
+    candidate = makeCandidate();
+  }
+
+  return candidate;
 }
 
 function normalizeTraderStatsState() {
@@ -1051,7 +1117,15 @@ function normalizeTraderStatsState() {
 }
 
 function getTraderStatsRows(referenceMs = nowMs()) {
-  const totals = { ...(state.traderStats.totals || {}) };
+  const totals = {};
+
+  // Clone each nested record so displaying stats never mutates saved totals.
+  for (const [userId, record] of Object.entries(state.traderStats.totals || {})) {
+    totals[userId] = {
+      ...record,
+      totalMs: Number(record.totalMs || 0),
+    };
+  }
 
   for (const [userId, session] of Object.entries(state.traderStats.activeSessions || {})) {
     if (!totals[userId]) {
@@ -1062,8 +1136,10 @@ function getTraderStatsRows(referenceMs = nowMs()) {
       };
     }
 
-    totals[userId].totalMs =
-      Number(totals[userId].totalMs || 0) + Math.max(0, referenceMs - Number(session.startedMs || referenceMs));
+    const startedMs = Number(session.startedMs);
+    if (Number.isFinite(startedMs)) {
+      totals[userId].totalMs += Math.max(0, referenceMs - startedMs);
+    }
   }
 
   return Object.values(totals)
@@ -1240,7 +1316,7 @@ function buildTraderStatsText() {
       ? `\n\nLast saved weekly digest:\n${state.traderStats.lastWeekSummary.text}`
       : "";
 
-    return `**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday at 6:00 AM EST.${lastWeekText}`;
+    return `**Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday at 6:00 AM Eastern Time.${lastWeekText}`;
   }
 
   const active = Object.values(state.traderStats.activeSessions || {});
@@ -1248,7 +1324,7 @@ function buildTraderStatsText() {
     ? `\n\nCurrently active: ${active.map((x) => `**${x.displayName}**`).join(", ")}`
     : "";
 
-  return `**Trader Hours This Week**\n${formatTraderStatsLines(rows).join("\n")}${activeLine}\n\nWeek resets Friday at 6:00 AM EST.`;
+  return `**Trader Hours This Week**\n${formatTraderStatsLines(rows).join("\n")}${activeLine}\n\nWeek resets Friday at 6:00 AM Eastern Time.`;
 }
 
 async function sendWeeklyTraderDigestIfDue() {
@@ -1344,11 +1420,23 @@ async function handleTraderStatusCommand(message) {
 
     if (action === "open") {
       const activeCountBeforeOpen = getActiveTraderCount();
-      startTraderSession(member, message.author);
+      const result = startTraderSession(member, message.author);
+
+      // activeSessions is keyed by user ID, so this only rejects a duplicate
+      // session for this trader. Other traders may still open simultaneously.
+      if (!result.started) {
+        await message.reply(
+          "You already have an active trader session. Use `!traderbreak` or `!traderclose` first."
+        );
+        return true;
+      }
 
       const status = await setTraderStatusChannelName(message.guild, TRADER_STATUS_NAMES.online);
 
       if (!status.ok) {
+        // The new session was not announced successfully, so do not leave it active.
+        delete state.traderStats.activeSessions[message.author.id];
+        saveState();
         await message.reply(status.error);
         return true;
       }
@@ -1756,7 +1844,3 @@ client.once("clientReady", async () => {
 });
 
 client.login(DISCORD_TOKEN);
-
-
-
-

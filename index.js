@@ -73,6 +73,7 @@ const TRADER_STATUS_COMMANDS = {
   "!traderoffline": "close",
 
   "!traderstats": "stats",
+  "!traderforceclose": "forceclose",
 };
 
 function die(msg) {
@@ -1395,9 +1396,11 @@ async function handleTraderStatusCommand(message) {
     if (!message.guild) return false;
 
     const content = message.content.toLowerCase().trim();
-    const action = TRADER_STATUS_COMMANDS[content];
+    const [command, ...args] = content.split(/\s+/);
+    const action = TRADER_STATUS_COMMANDS[command];
 
     if (!action) return false;
+    if (action !== "forceclose" && args.length) return false;
 
     const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
 
@@ -1405,12 +1408,60 @@ async function handleTraderStatusCommand(message) {
       TRADER_STATUS_ROLE_IDS.includes(role.id)
     );
 
-    if (!hasRole) {
+    const canForceClose = hasRole ||
+      member?.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+      (STAFF_ROLE_ID && member?.roles?.cache?.has(STAFF_ROLE_ID));
+
+    if (action === "forceclose" ? !canForceClose : !hasRole) {
       await message.reply("You do not have permission to use this command.");
       return true;
     }
 
     const displayName = getDisplayNameForMember(member, message.author);
+
+    if (action === "forceclose") {
+      const targetId = args.length === 1
+        ? args[0].match(/^(?:<@!?(\d{17,20})>|(\d{17,20}))$/)?.slice(1).find(Boolean)
+        : null;
+
+      if (!targetId) {
+        await message.reply("Usage: `!traderforceclose @Trader` or `!traderforceclose USER_ID`.");
+        return true;
+      }
+
+      ensureTraderStatsWeek();
+      const session = state.traderStats.activeSessions[targetId];
+      if (!session) {
+        await message.reply("That trader does not have an active session.");
+        return true;
+      }
+
+      // Use the saved identity even if the trader has left the server.
+      const targetUser = { id: targetId, username: session.displayName || "Unknown Trader" };
+      const result = stopTraderSession(null, targetUser);
+      const activeCount = getActiveTraderCount();
+      const status = await setTraderStatusChannelName(message.guild,
+        activeCount > 0 ? TRADER_STATUS_NAMES.online : TRADER_STATUS_NAMES.offline);
+      const remainingText = activeCount > 0
+        ? ` Trader is still online with **${activeCount}** active trader${activeCount === 1 ? "" : "s"}.`
+        : " Trader is now offline.";
+      const announcement = `**${result.displayName}** was taken offline by **${displayName}**. Time logged: **${formatDuration(result.addedMs)}**.${remainingText}`;
+
+      // The session stays closed even if Discord cannot update the channel.
+      if (!status.ok) {
+        await message.reply({
+          content: `Session closed and time saved. ${status.error}`,
+          allowedMentions: { parse: [], repliedUser: false },
+        });
+        return true;
+      }
+
+      await status.channel.send({ content: announcement, allowedMentions: { parse: [] } });
+      if (message.channel.id !== status.channel.id) {
+        await message.reply({ content: announcement, allowedMentions: { parse: [], repliedUser: false } });
+      }
+      return true;
+    }
 
     if (action === "stats") {
       const statsText = buildTraderStatsText();

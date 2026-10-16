@@ -2151,6 +2151,7 @@ async function routeTraderCommand(message) {
     extra = tokens.slice(1);
   }
   if (!action) return handleTraderStatusCommand(message);
+  if (!action) return false;
   if (message.channel.id !== TRADER_COMMAND_CHANNEL_ID) {
     await message.reply(`Use trader commands in <#${TRADER_COMMAND_CHANNEL_ID}>.`);
     return;

@@ -255,6 +255,7 @@ function saveState() {
     trusted: state.trusted,
     flaggedAll: flaggedAllObj,
     traderStats: state.traderStats,
+    traderStatsNasdara: state.traderStatsNasdara,
   }, null, 2), "utf8");
 }
 
@@ -272,6 +273,19 @@ if (RESET_STATE) {
 
   saveState();
 }
+
+state.traderStatsNasdara = defaultTraderStats();
+if (!RESET_STATE) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    if (saved?.traderStatsNasdara && typeof saved.traderStatsNasdara === "object") {
+      state.traderStatsNasdara = saved.traderStatsNasdara;
+    }
+  } catch {}
+}
+
+const NASDARA_TRADER_STATUS_CHANNEL_ID = "1559919441217720391";
+const TRADER_COMMAND_CHANNEL_ID = "1257773625717690530";
 
 function isTrustedKey(k) {
   return !!state.trusted?.[k];
@@ -1419,12 +1433,12 @@ async function setTraderStatusChannelName(guild, desiredName) {
   };
 }
 
-async function handleTraderStatusCommand(message) {
+async function handleTraderStatusCommand(message, commandText = message.content) {
   try {
     if (message.author.bot) return false;
     if (!message.guild) return false;
 
-    const content = message.content.toLowerCase().trim();
+    const content = commandText.toLowerCase().trim();
     const [command, ...args] = content.split(/\s+/);
     const action = TRADER_STATUS_COMMANDS[command];
 
@@ -1604,8 +1618,569 @@ async function handleTraderStatusCommand(message) {
   }
 }
 
+function getTraderWeekStartMsNasdara(referenceMs = nowMs()) {
+  const easternNow = getTimeZoneParts(referenceMs, TRADER_TIME_ZONE);
+
+  // This Date represents Eastern calendar fields; UTC methods avoid host-zone effects.
+  const localDate = new Date(Date.UTC(
+    easternNow.year,
+    easternNow.month - 1,
+    easternNow.day
+  ));
+
+  const daysSinceFriday = (localDate.getUTCDay() - 5 + 7) % 7;
+  localDate.setUTCDate(localDate.getUTCDate() - daysSinceFriday);
+
+  const makeCandidate = () => zonedDateTimeToUtcMs(
+    localDate.getUTCFullYear(),
+    localDate.getUTCMonth() + 1,
+    localDate.getUTCDate(),
+    6,
+    0,
+    0,
+    TRADER_TIME_ZONE
+  );
+
+  let candidate = makeCandidate();
+
+  // Before Friday at 6:00 AM Eastern, use the preceding Friday.
+  if (candidate > referenceMs) {
+    localDate.setUTCDate(localDate.getUTCDate() - 7);
+    candidate = makeCandidate();
+  }
+
+  return candidate;
+}
+
+function normalizeTraderStatsStateNasdara() {
+  if (!state.traderStatsNasdara || typeof state.traderStatsNasdara !== "object") {
+    state.traderStatsNasdara = defaultTraderStats();
+  }
+
+  if (!state.traderStatsNasdara.totals || typeof state.traderStatsNasdara.totals !== "object") {
+    state.traderStatsNasdara.totals = {};
+  }
+
+  if (!state.traderStatsNasdara.activeSessions || typeof state.traderStatsNasdara.activeSessions !== "object") {
+    state.traderStatsNasdara.activeSessions = {};
+  }
+
+  if (!Number.isFinite(Number(state.traderStatsNasdara.weekStartMs))) {
+    state.traderStatsNasdara.weekStartMs = 0;
+  }
+
+  if (!Number.isFinite(Number(state.traderStatsNasdara.lastDigestWeekStartMs))) {
+    state.traderStatsNasdara.lastDigestWeekStartMs = 0;
+  }
+
+  if (!state.traderStatsNasdara.lastWeekSummary || typeof state.traderStatsNasdara.lastWeekSummary !== "object") {
+    state.traderStatsNasdara.lastWeekSummary = null;
+  }
+}
+
+function getTraderStatsRowsNasdara(referenceMs = nowMs()) {
+  const totals = {};
+
+  // Clone each nested record so displaying stats never mutates saved totals.
+  for (const [userId, record] of Object.entries(state.traderStatsNasdara.totals || {})) {
+    totals[userId] = {
+      ...record,
+      totalMs: Number(record.totalMs || 0),
+    };
+  }
+
+  for (const [userId, session] of Object.entries(state.traderStatsNasdara.activeSessions || {})) {
+    if (!totals[userId]) {
+      totals[userId] = {
+        userId,
+        displayName: session.displayName || "Unknown Trader",
+        totalMs: 0,
+      };
+    }
+
+    const startedMs = Number(session.startedMs);
+    if (Number.isFinite(startedMs)) {
+      totals[userId].totalMs += Math.max(0, referenceMs - startedMs);
+    }
+  }
+
+  return Object.values(totals)
+    .filter((x) => Number(x.totalMs || 0) > 0)
+    .sort((a, b) => Number(b.totalMs || 0) - Number(a.totalMs || 0));
+}
+
+function formatTraderStatsLinesNasdara(rows) {
+  return rows.map((x) => `**${x.displayName || "Unknown Trader"}** - ${formatDurationNasdara(Number(x.totalMs || 0))}`);
+}
+
+function buildTraderWeeklyDigestTextNasdara(rows, weekStartMs, weekEndMs) {
+  const startUnix = Math.floor(Number(weekStartMs || 0) / 1000);
+  const endUnix = Math.floor(Number(weekEndMs || 0) / 1000);
+  const rangeText = weekStartMs
+    ? `\n<t:${startUnix}:f> to <t:${endUnix}:f>`
+    : "";
+
+  if (!rows.length) {
+    return `**Weekly Nasdara Trader Hours Digest**${rangeText}\nNo trader time logged.`;
+  }
+
+  const totalMs = rows.reduce((sum, row) => sum + Number(row.totalMs || 0), 0);
+
+  return `**Weekly Nasdara Trader Hours Digest**${rangeText}\n${formatTraderStatsLinesNasdara(rows).join("\n")}\n\nTotal trader time: **${formatDurationNasdara(totalMs)}**`;
+}
+
+function rollTraderStatsWeekNasdara(currentWeekStart) {
+  const previousWeekStart = Number(state.traderStatsNasdara.weekStartMs || 0);
+  const rows = getTraderStatsRowsNasdara(currentWeekStart);
+
+  state.traderStatsNasdara.lastWeekSummary = {
+    weekStartMs: previousWeekStart,
+    weekEndMs: currentWeekStart,
+    createdMs: nowMs(),
+    text: buildTraderWeeklyDigestTextNasdara(rows, previousWeekStart, currentWeekStart),
+  };
+
+  const carriedActiveSessions = {};
+  for (const [userId, session] of Object.entries(state.traderStatsNasdara.activeSessions || {})) {
+    carriedActiveSessions[userId] = {
+      ...session,
+      startedMs: currentWeekStart,
+    };
+  }
+
+  state.traderStatsNasdara.weekStartMs = currentWeekStart;
+  state.traderStatsNasdara.totals = {};
+  state.traderStatsNasdara.activeSessions = carriedActiveSessions;
+}
+
+function ensureTraderStatsWeekNasdara() {
+  normalizeTraderStatsStateNasdara();
+
+  const currentWeekStart = getTraderWeekStartMsNasdara();
+
+  if (!state.traderStatsNasdara.weekStartMs) {
+    state.traderStatsNasdara.weekStartMs = currentWeekStart;
+    saveState();
+    return;
+  }
+
+  if (state.traderStatsNasdara.weekStartMs !== currentWeekStart) {
+    rollTraderStatsWeekNasdara(currentWeekStart);
+    saveState();
+  }
+}
+
+function formatDurationNasdara(ms) {
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes <= 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+function getActiveTraderCountNasdara() {
+  ensureTraderStatsWeekNasdara();
+  return Object.keys(state.traderStatsNasdara.activeSessions || {}).length;
+}
+
+function getDisplayNameForMemberNasdara(member, fallbackUser) {
+  return member?.displayName || fallbackUser?.globalName || fallbackUser?.username || "Unknown Trader";
+}
+
+function startTraderSessionNasdara(member, user) {
+  ensureTraderStatsWeekNasdara();
+
+  const userId = user.id;
+  const displayName = getDisplayNameForMemberNasdara(member, user);
+
+  if (state.traderStatsNasdara.activeSessions[userId]) {
+    return {
+      started: false,
+      displayName,
+      alreadyActive: true,
+    };
+  }
+
+  state.traderStatsNasdara.activeSessions[userId] = {
+    userId,
+    displayName,
+    startedMs: nowMs(),
+  };
+
+  if (!state.traderStatsNasdara.totals[userId]) {
+    state.traderStatsNasdara.totals[userId] = {
+      userId,
+      displayName,
+      totalMs: 0,
+    };
+  } else {
+    state.traderStatsNasdara.totals[userId].displayName = displayName;
+  }
+
+  saveState();
+
+  return {
+    started: true,
+    displayName,
+    alreadyActive: false,
+  };
+}
+
+function stopTraderSessionNasdara(member, user) {
+  ensureTraderStatsWeekNasdara();
+
+  const userId = user.id;
+  const displayName = getDisplayNameForMemberNasdara(member, user);
+  const session = state.traderStatsNasdara.activeSessions[userId];
+
+  if (!session) {
+    return {
+      stopped: false,
+      displayName,
+      addedMs: 0,
+    };
+  }
+
+  const addedMs = Math.max(0, nowMs() - Number(session.startedMs || nowMs()));
+
+  if (!state.traderStatsNasdara.totals[userId]) {
+    state.traderStatsNasdara.totals[userId] = {
+      userId,
+      displayName,
+      totalMs: 0,
+    };
+  }
+
+  state.traderStatsNasdara.totals[userId].displayName = displayName;
+  state.traderStatsNasdara.totals[userId].totalMs =
+    Number(state.traderStatsNasdara.totals[userId].totalMs || 0) + addedMs;
+
+  delete state.traderStatsNasdara.activeSessions[userId];
+
+  saveState();
+
+  return {
+    stopped: true,
+    displayName,
+    addedMs,
+  };
+}
+
+function buildTraderStatsTextNasdara() {
+  ensureTraderStatsWeekNasdara();
+
+  const rows = getTraderStatsRowsNasdara();
+
+  if (!rows.length) {
+    const lastWeekText = state.traderStatsNasdara.lastWeekSummary?.text
+      ? `\n\nLast saved weekly digest:\n${state.traderStatsNasdara.lastWeekSummary.text}`
+      : "";
+
+    return `**Nasdara Trader Hours This Week**\nNo trader time logged yet.\n\nWeek resets Friday at 6:00 AM Eastern Time.${lastWeekText}`;
+  }
+
+  const active = Object.values(state.traderStatsNasdara.activeSessions || {});
+  const activeLine = active.length
+    ? `\n\nCurrently active: ${active.map((x) => `**${x.displayName}**`).join(", ")}`
+    : "";
+
+  return `**Nasdara Trader Hours This Week**\n${formatTraderStatsLinesNasdara(rows).join("\n")}${activeLine}\n\nWeek resets Friday at 6:00 AM Eastern Time.`;
+}
+
+async function sendWeeklyTraderDigestIfDueNasdara() {
+  ensureTraderStatsWeekNasdara();
+
+  const summary = state.traderStatsNasdara.lastWeekSummary;
+  if (!summary?.text || !summary.weekStartMs) return;
+  if (state.traderStatsNasdara.lastDigestWeekStartMs === summary.weekStartMs) return;
+  if (!TRADER_DIGEST_CHANNEL_ID) return;
+
+  const channel = await client.channels.fetch(TRADER_DIGEST_CHANNEL_ID).catch(() => null);
+  if (!channel || !channel.guild || typeof channel.send !== "function") return;
+
+  const me = channel.guild.members.me;
+  if (me) {
+    const perms = channel.permissionsFor(me);
+    if (!perms?.has(PermissionsBitField.Flags.SendMessages)) return;
+  }
+
+  const ping = TRADER_DIGEST_PING_ROLE_ID ? `<@&${TRADER_DIGEST_PING_ROLE_ID}>\n` : "";
+  await channel.send({
+    content: `${ping}${summary.text}`,
+    allowedMentions: TRADER_DIGEST_PING_ROLE_ID
+      ? { roles: [TRADER_DIGEST_PING_ROLE_ID] }
+      : { parse: [] },
+  });
+
+  state.traderStatsNasdara.lastDigestWeekStartMs = summary.weekStartMs;
+  saveState();
+}
+
+async function setTraderStatusChannelNameNasdara(guild, desiredName) {
+  const channel = await guild.channels.fetch(NASDARA_TRADER_STATUS_CHANNEL_ID).catch(() => null);
+
+  if (!channel || typeof channel.setName !== "function") {
+    return {
+      ok: false,
+      channel: null,
+      error: "Trader status channel not found, or it cannot be renamed.",
+    };
+  }
+
+  const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+  const perms = botMember ? channel.permissionsFor(botMember) : null;
+
+  if (!perms?.has(PermissionsBitField.Flags.ManageChannels)) {
+    return {
+      ok: false,
+      channel,
+      error: "I need the **Manage Channels** permission to rename the trader status channel.",
+    };
+  }
+
+  if (channel.name !== desiredName) {
+    await channel.setName(desiredName, "Trader status command used");
+  }
+
+  return {
+    ok: true,
+    channel,
+    error: null,
+  };
+}
+
+async function handleTraderStatusCommandNasdara(message, commandText = message.content) {
+  try {
+    if (message.author.bot) return false;
+    if (!message.guild) return false;
+
+    const content = commandText.toLowerCase().trim();
+    const [command, ...args] = content.split(/\s+/);
+    const action = TRADER_STATUS_COMMANDS[command];
+
+    if (!action) return false;
+    if (action !== "forceclose" && args.length) return false;
+
+    const member = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
+
+    const hasRole = member?.roles?.cache?.some((role) =>
+      TRADER_STATUS_ROLE_IDS.includes(role.id)
+    );
+
+    const canForceClose = hasRole ||
+      member?.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+      (STAFF_ROLE_ID && member?.roles?.cache?.has(STAFF_ROLE_ID));
+
+    if (action === "forceclose" ? !canForceClose : !hasRole) {
+      await message.reply("You do not have permission to use this command.");
+      return true;
+    }
+
+    const displayName = getDisplayNameForMemberNasdara(member, message.author);
+
+    if (action === "forceclose") {
+      const targetId = args.length === 1
+        ? args[0].match(/^(?:<@!?(\d{17,20})>|(\d{17,20}))$/)?.slice(1).find(Boolean)
+        : null;
+
+      if (!targetId) {
+        await message.reply("Usage: `!traderforceclose @Trader` or `!traderforceclose USER_ID`.");
+        return true;
+      }
+
+      ensureTraderStatsWeekNasdara();
+      const session = state.traderStatsNasdara.activeSessions[targetId];
+      if (!session) {
+        await message.reply("That trader does not have an active session.");
+        return true;
+      }
+
+      // Use the saved identity even if the trader has left the server.
+      const targetUser = { id: targetId, username: session.displayName || "Unknown Trader" };
+      const result = stopTraderSessionNasdara(null, targetUser);
+      const activeCount = getActiveTraderCountNasdara();
+      const status = await setTraderStatusChannelNameNasdara(message.guild,
+        activeCount > 0 ? TRADER_STATUS_NAMES.online : TRADER_STATUS_NAMES.offline);
+      const remainingText = activeCount > 0
+        ? ` Trader is still online with **${activeCount}** active trader${activeCount === 1 ? "" : "s"}.`
+        : " Trader is now offline.";
+      const announcement = `**${result.displayName}** was taken offline by **${displayName}**. Time logged: **${formatDurationNasdara(result.addedMs)}**.${remainingText}`;
+
+      // The session stays closed even if Discord cannot update the channel.
+      if (!status.ok) {
+        await message.reply({
+          content: `Session closed and time saved. ${status.error}`,
+          allowedMentions: { parse: [], repliedUser: false },
+        });
+        return true;
+      }
+
+      await status.channel.send({ content: announcement, allowedMentions: { parse: [] } });
+      if (message.channel.id !== status.channel.id) {
+        await message.reply({ content: announcement, allowedMentions: { parse: [], repliedUser: false } });
+      }
+      return true;
+    }
+
+    if (action === "stats") {
+      const statsText = buildTraderStatsTextNasdara();
+      await message.reply(statsText);
+      return true;
+    }
+
+    if (action === "open") {
+      const activeCountBeforeOpen = getActiveTraderCountNasdara();
+      const result = startTraderSessionNasdara(member, message.author);
+
+      // activeSessions is keyed by user ID, so this only rejects a duplicate
+      // session for this trader. Other traders may still open simultaneously.
+      if (!result.started) {
+        await message.reply(
+          "You already have an active trader session. Use `!traderbreak` or `!traderclose` first."
+        );
+        return true;
+      }
+
+      const status = await setTraderStatusChannelNameNasdara(message.guild, TRADER_STATUS_NAMES.online);
+
+      if (!status.ok) {
+        // The new session was not announced successfully, so do not leave it active.
+        delete state.traderStatsNasdara.activeSessions[message.author.id];
+        saveState();
+        await message.reply(status.error);
+        return true;
+      }
+
+      const openedAtUnix = Math.floor(Date.now() / 1000);
+      const rolePing = activeCountBeforeOpen === 0 ? `<@&${TRADER_PING_ROLE_ID}> ` : "";
+      await status.channel.send(`${rolePing}<@${message.author.id}> opened trader at <t:${openedAtUnix}:t>`);
+
+      if (message.channel.id !== status.channel.id) {
+        await message.reply("Trader status set to online.");
+      }
+
+      return true;
+    }
+
+    if (action === "break") {
+      const result = stopTraderSessionNasdara(member, message.author);
+      const activeCount = getActiveTraderCountNasdara();
+
+      const desiredName = activeCount > 0
+        ? TRADER_STATUS_NAMES.online
+        : TRADER_STATUS_NAMES.break;
+
+      const status = await setTraderStatusChannelNameNasdara(message.guild, desiredName);
+
+      if (!status.ok) {
+        await message.reply(status.error);
+        return true;
+      }
+
+      const timeText = result.stopped
+        ? ` Time logged: **${formatDurationNasdara(result.addedMs)}**.`
+        : "";
+
+      const stillOnlineText = activeCount > 0
+        ? ` Trader is still online with **${activeCount}** active trader${activeCount === 1 ? "" : "s"}.`
+        : " Trader is currently on break.";
+
+      await status.channel.send(`**${displayName}** is on trader break.${timeText}${stillOnlineText}`);
+
+      if (message.channel.id !== status.channel.id) {
+        await message.reply("Trader break logged.");
+      }
+
+      return true;
+    }
+
+    if (action === "close") {
+      const result = stopTraderSessionNasdara(member, message.author);
+      const activeCount = getActiveTraderCountNasdara();
+
+      const desiredName = activeCount > 0
+        ? TRADER_STATUS_NAMES.online
+        : TRADER_STATUS_NAMES.offline;
+
+      const status = await setTraderStatusChannelNameNasdara(message.guild, desiredName);
+
+      if (!status.ok) {
+        await message.reply(status.error);
+        return true;
+      }
+
+      const timeText = result.stopped
+        ? ` Time logged: **${formatDurationNasdara(result.addedMs)}**.`
+        : "";
+
+      const stillOnlineText = activeCount > 0
+        ? ` Trader is still online with **${activeCount}** active trader${activeCount === 1 ? "" : "s"}.`
+        : " Trader is now offline.";
+
+      await status.channel.send(`**${displayName}** closed trader.${timeText}${stillOnlineText}`);
+
+      if (message.channel.id !== status.channel.id) {
+        await message.reply("Trader close logged.");
+      }
+
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.error("[TRADER STATUS ERROR]", err?.message ?? err);
+    await message.reply("Something went wrong while updating trader status.").catch(() => null);
+    return true;
+  }
+}
+
+
+async function routeTraderCommand(message) {
+  if (message.author.bot || !message.guild) return;
+  const tokens = message.content.trim().toLowerCase().split(/\s+/);
+  const shortActions = { "!topen": "!traderonline", "!tbreak": "!traderbreak", "!tclose": "!traderclose", "!tstats": "!traderstats", "!tforceclose": "!traderforceclose" };
+  let action = shortActions[tokens[0]];
+  let target = tokens[1];
+  let extra = tokens.slice(2);
+  const alias = tokens[0].match(/^!trader(online|open|break|close|offline)(chernarus|nasdara|both)$/);
+  if (alias) {
+    action = `!trader${alias[1]}`;
+    target = alias[2];
+    extra = tokens.slice(1);
+  }
+  if (!action) return handleTraderStatusCommand(message);
+  if (message.channel.id !== TRADER_COMMAND_CHANNEL_ID) {
+    await message.reply(`Use trader commands in <#${TRADER_COMMAND_CHANNEL_ID}>.`);
+    return;
+  }
+  const targets = { c: ["c"], chernarus: ["c"], n: ["n"], nasdara: ["n"], both: ["c", "n"] }[target];
+  if (!targets || (action !== "!traderforceclose" && extra.length)) {
+    await message.reply("Use `!topen c`, `!topen n`, or `!topen both`. Also available: `!tbreak`, `!tclose`, `!tstats`, and `!tforceclose c/n/both @Trader`.");
+    return;
+  }
+  for (const server of targets) {
+    const label = server === "c" ? "Chernarus" : "Nasdara";
+    // Prefix replies so both-server results identify the server involved.
+    const scopedMessage = new Proxy(message, {
+      get(targetMessage, key) {
+        if (key === "reply") return (payload) => {
+          const body = typeof payload === "string" ? { content: payload } : { ...payload };
+          body.content = `**${label}:** ${body.content ?? ""}`;
+          return message.reply(body);
+        };
+        const value = Reflect.get(targetMessage, key, targetMessage);
+        return typeof value === "function" ? value.bind(targetMessage) : value;
+      },
+    });
+    const text = [action, ...extra].join(" ");
+    await (server === "c" ? handleTraderStatusCommand : handleTraderStatusCommandNasdara)(scopedMessage, text);
+  }
+}
+
 client.on("messageCreate", async (message) => {
-  await handleTraderStatusCommand(message);
+  await routeTraderCommand(message);
 });
 
 client.on("interactionCreate", async (interaction) => {
@@ -1903,6 +2478,7 @@ client.once("clientReady", async () => {
     console.error("[COMMANDS] deploy error:", e?.message ?? e)
   );
 
+  await sendWeeklyTraderDigestIfDueNasdara().catch((e) => console.error("[NASDARA TRADER DIGEST]", e));
   await sendWeeklyTraderDigestIfDue().catch((e) => console.error("[TRADER DIGEST] error:", e));
 
   await pollOnlineLists().catch((e) => console.error("[POLL] error:", e));
@@ -1916,10 +2492,12 @@ client.once("clientReady", async () => {
   }, 60 * 1000);
 
   setInterval(() => {
+    sendWeeklyTraderDigestIfDueNasdara().catch((e) => console.error("[NASDARA TRADER DIGEST]", e));
     sendWeeklyTraderDigestIfDue().catch((e) => console.error("[TRADER DIGEST] error:", e));
   }, 60 * 1000);
 
   await sendDigestIfDue().catch((e) => console.error("[DIGEST] error:", e));
+  await sendWeeklyTraderDigestIfDueNasdara().catch((e) => console.error("[NASDARA TRADER DIGEST]", e));
   await sendWeeklyTraderDigestIfDue().catch((e) => console.error("[TRADER DIGEST] error:", e));
 });
 

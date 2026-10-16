@@ -26,6 +26,15 @@ const GS_THRESHOLD = Number.parseInt((process.env.GS_THRESHOLD ?? "2500").trim()
 const ONLINE_LIST_CHANNEL_ID = (process.env.ONLINE_LIST_CHANNEL_ID ?? "").trim();
 const ONLINE_COUNT_CHANNEL_ID = (process.env.ONLINE_COUNT_CHANNEL_ID ?? "1265079510982725632").trim();
 const ONLINE_COUNT_MAX_PLAYERS = Number.parseInt((process.env.ONLINE_COUNT_MAX_PLAYERS ?? "50").trim(), 10);
+// Optional second server: source list channel and destination count channel.
+const ONLINE_LIST_CHANNEL_ID_2 = (process.env.ONLINE_LIST_CHANNEL_ID_2 ?? "1559918197937930341").trim();
+const ONLINE_COUNT_CHANNEL_ID_2 = (process.env.ONLINE_COUNT_CHANNEL_ID_2 ?? "1559918287893041273").trim();
+const ONLINE_COUNT_MAX_PLAYERS_2 = Number.parseInt((process.env.ONLINE_COUNT_MAX_PLAYERS_2 ?? "50").trim(), 10);
+const ONLINE_SERVERS = [
+  { label: "Server 1", listChannelId: ONLINE_LIST_CHANNEL_ID, countChannelId: ONLINE_COUNT_CHANNEL_ID, maxPlayers: ONLINE_COUNT_MAX_PLAYERS },
+  { label: "Server 2", listChannelId: ONLINE_LIST_CHANNEL_ID_2, countChannelId: ONLINE_COUNT_CHANNEL_ID_2, maxPlayers: ONLINE_COUNT_MAX_PLAYERS_2 },
+].filter((server) => server.listChannelId);
+
 const MODLOG_CHANNEL_ID = (process.env.MODLOG_CHANNEL_ID ?? "").trim();
 
 const DIGEST_CHANNEL_ID = (process.env.DIGEST_CHANNEL_ID ?? MODLOG_CHANNEL_ID).trim();
@@ -88,6 +97,11 @@ if (!Number.isFinite(DIGEST_INTERVAL_HOURS) || DIGEST_INTERVAL_HOURS < 1) die("D
 if (!Number.isFinite(SCRUB_DELAY_MS) || SCRUB_DELAY_MS < 0) die("SCRUB_DELAY_MS must be non-negative.");
 if (!Number.isFinite(POLL_SECONDS) || POLL_SECONDS < 10) die("POLL_SECONDS must be >= 10.");
 if (!Number.isFinite(ONLINE_COUNT_MAX_PLAYERS) || ONLINE_COUNT_MAX_PLAYERS < 1) die("ONLINE_COUNT_MAX_PLAYERS must be >= 1.");
+
+if (Boolean(ONLINE_LIST_CHANNEL_ID_2) !== Boolean(ONLINE_COUNT_CHANNEL_ID_2)) die("Set both ONLINE_LIST_CHANNEL_ID_2 and ONLINE_COUNT_CHANNEL_ID_2 to enable the second server.");
+if (ONLINE_LIST_CHANNEL_ID_2 && (!Number.isInteger(ONLINE_COUNT_MAX_PLAYERS_2) || ONLINE_COUNT_MAX_PLAYERS_2 < 1)) die("ONLINE_COUNT_MAX_PLAYERS_2 must be >= 1.");
+if (ONLINE_LIST_CHANNEL_ID_2 && ONLINE_LIST_CHANNEL_ID_2 === ONLINE_LIST_CHANNEL_ID) die("The two servers must use different online list channels.");
+if (ONLINE_COUNT_CHANNEL_ID_2 && ONLINE_COUNT_CHANNEL_ID_2 === ONLINE_COUNT_CHANNEL_ID) die("The two servers must use different online count channels.");
 
 process.on("unhandledRejection", (err) => console.error("Unhandled rejection:", err));
 process.on("uncaughtException", (err) => console.error("Uncaught exception:", err));
@@ -618,10 +632,10 @@ function extractOnlineCountFromMessage(msg, parsedGamertags = []) {
   return parsedGamertags.length;
 }
 
-async function updateOnlineCountChannel(guild, count) {
-  if (!ONLINE_COUNT_CHANNEL_ID || !guild) return;
+async function updateOnlineCountChannel(guild, count, server) {
+  if (!server.countChannelId || !guild) return;
 
-  const channel = await guild.channels.fetch(ONLINE_COUNT_CHANNEL_ID).catch(() => null);
+  const channel = await guild.channels.fetch(server.countChannelId).catch(() => null);
   if (!channel || typeof channel.setName !== "function") return;
 
   const botMember = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
@@ -632,7 +646,7 @@ async function updateOnlineCountChannel(guild, count) {
     return;
   }
 
-  const desiredName = `\uD83D\uDFE2 On Now ${count}/${ONLINE_COUNT_MAX_PLAYERS}`;
+  const desiredName = `\uD83D\uDFE2 On Now ${count}/${server.maxPlayers}`;
 
   if (channel.name !== desiredName) {
     await channel.setName(desiredName, "Online player count updated");
@@ -854,10 +868,25 @@ const queuedKeys = new Set();
 let working = false;
 let globalCooldownUntilMs = 0;
 
-async function pollOnlineList() {
-  if (!ONLINE_LIST_CHANNEL_ID) return;
+let onlinePollRunning = false;
+async function pollOnlineLists() {
+  if (onlinePollRunning) return;
+  onlinePollRunning = true;
+  try {
+    await Promise.all(ONLINE_SERVERS.map(async (server) => {
+      try {
+        await pollOnlineList(server);
+      } catch (err) {
+        console.error(`[POLL ${server.label}] error:`, err?.message ?? err);
+      }
+    }));
+  } finally {
+    onlinePollRunning = false;
+  }
+}
 
-  const channel = await client.channels.fetch(ONLINE_LIST_CHANNEL_ID).catch(() => null);
+async function pollOnlineList(server) {
+  const channel = await client.channels.fetch(server.listChannelId).catch(() => null);
   if (!channel || !("messages" in channel)) return;
 
   const messages = await channel.messages.fetch({ limit: 1 }).catch(() => null);
@@ -866,10 +895,10 @@ async function pollOnlineList() {
   if (!newest) return;
 
   const gts = extractGamertagsFromEmbeds(newest);
-  console.log(`[POLL] Found ${gts.length} gamertag(s) in online list.`);
+  console.log(`[POLL ${server.label}] Found ${gts.length} gamertag(s) in online list.`);
 
   try {
-    await updateOnlineCountChannel(newest.guild, extractOnlineCountFromMessage(newest, gts));
+    await updateOnlineCountChannel(newest.guild, extractOnlineCountFromMessage(newest, gts), server);
   } catch (err) {
     console.warn("[ONLINE COUNT] Failed to update online count channel:", err?.message ?? err);
   }
@@ -1876,10 +1905,10 @@ client.once("clientReady", async () => {
 
   await sendWeeklyTraderDigestIfDue().catch((e) => console.error("[TRADER DIGEST] error:", e));
 
-  await pollOnlineList().catch((e) => console.error("[POLL] error:", e));
+  await pollOnlineLists().catch((e) => console.error("[POLL] error:", e));
 
   setInterval(() => {
-    pollOnlineList().catch((e) => console.error("[POLL] error:", e));
+    pollOnlineLists().catch((e) => console.error("[POLL] error:", e));
   }, POLL_SECONDS * 1000);
 
   setInterval(() => {

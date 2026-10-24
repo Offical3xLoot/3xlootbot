@@ -285,7 +285,7 @@ if (!RESET_STATE) {
 }
 
 const NASDARA_TRADER_STATUS_CHANNEL_ID = "1559919441217720391";
-const TRADER_COMMAND_CHANNEL_ID = "1257773625717690530";
+const TRADER_COMMAND_CHANNEL_IDS = ["1421520159452954695", "1257773625717690529"];
 
 function isTrustedKey(k) {
   return !!state.trusted?.[k];
@@ -2150,12 +2150,13 @@ async function routeTraderCommand(message) {
     target = alias[2];
     extra = tokens.slice(1);
   }
-  if (!action) return handleTraderStatusCommand(message);
-  if (!action) return false;
-  if (message.channel.id !== TRADER_COMMAND_CHANNEL_ID) {
-    await message.reply(`Use trader commands in <#${TRADER_COMMAND_CHANNEL_ID}>.`);
+  if (!action && !TRADER_STATUS_COMMANDS[tokens[0]]) return false;
+  if (!TRADER_COMMAND_CHANNEL_IDS.includes(message.channel.id)) {
+    const channels = TRADER_COMMAND_CHANNEL_IDS.map((id) => `<#${id}>`).join(" or ");
+    await message.reply(`Use trader commands in ${channels}.`);
     return;
   }
+  if (!action) return handleTraderStatusCommand(message);
   const targets = { c: ["c"], chernarus: ["c"], n: ["n"], nasdara: ["n"], both: ["c", "n"] }[target];
   if (!targets || (action !== "!traderforceclose" && extra.length)) {
     await message.reply("Use `!topen c`, `!topen n`, or `!topen both`. Also available: `!tbreak`, `!tclose`, `!tstats`, and `!tforceclose c/n/both @Trader`.");
